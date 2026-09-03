@@ -162,7 +162,10 @@ class _ImageLayer extends StatelessWidget {
                   0,
                 ])
               : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
-          child: Image.asset(imagePath, fit: BoxFit.cover),
+          child: Image.asset(
+            imagePath,
+            fit: BoxFit.cover,
+          ),
         ),
         const DecoratedBox(
           decoration: BoxDecoration(

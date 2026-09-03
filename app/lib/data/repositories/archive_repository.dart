@@ -48,9 +48,7 @@ class ArchiveRepository {
   Future<List<NewsItem>> getNewsByLocation(String locationId) async {
     List<NewsItem> items;
     try {
-      final response = await _apiClient.dio.get<List<dynamic>>(
-        '/api/archive/$locationId',
-      );
+      final response = await _apiClient.dio.get<List<dynamic>>('/api/archive/$locationId');
       items = (response.data ?? const [])
           .map((json) => NewsItem.fromJson(json as Map<String, dynamic>))
           .toList();

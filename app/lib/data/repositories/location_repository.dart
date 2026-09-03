@@ -39,13 +39,9 @@ class LocationRepository {
 
   Future<List<HometownLocation>> getRecentLocations() async {
     try {
-      final response = await _apiClient.dio.get<List<dynamic>>(
-        '/api/location/all',
-      );
+      final response = await _apiClient.dio.get<List<dynamic>>('/api/location/all');
       return (response.data ?? const [])
-          .map(
-            (json) => HometownLocation.fromJson(json as Map<String, dynamic>),
-          )
+          .map((json) => HometownLocation.fromJson(json as Map<String, dynamic>))
           .toList();
     } on DioException {
       return _mockLocations;
@@ -54,9 +50,7 @@ class LocationRepository {
 
   Future<HometownLocation?> getLocationById(String id) async {
     try {
-      final response = await _apiClient.dio.get<Map<String, dynamic>>(
-        '/api/location/$id',
-      );
+      final response = await _apiClient.dio.get<Map<String, dynamic>>('/api/location/$id');
       final data = response.data;
       return data == null ? null : HometownLocation.fromJson(data);
     } on DioException catch (error) {

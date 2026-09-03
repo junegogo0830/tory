@@ -44,9 +44,7 @@ class CourseRepository {
 
   Future<List<TourCourse>> getCoursesByLocation(String locationId) async {
     try {
-      final response = await _apiClient.dio.get<List<dynamic>>(
-        '/api/course/by-location/$locationId',
-      );
+      final response = await _apiClient.dio.get<List<dynamic>>('/api/course/by-location/$locationId');
       return _decodeCourses(response.data);
     } on DioException {
       return _mockCourses[locationId] ?? const [];
@@ -65,9 +63,7 @@ class CourseRepository {
 
   Future<TourCourse?> getCourseById(String courseId) async {
     try {
-      final response = await _apiClient.dio.get<Map<String, dynamic>>(
-        '/api/course/detail/$courseId',
-      );
+      final response = await _apiClient.dio.get<Map<String, dynamic>>('/api/course/detail/$courseId');
       final data = response.data;
       return data == null ? null : TourCourse.fromJson(data);
     } on DioException catch (error) {
