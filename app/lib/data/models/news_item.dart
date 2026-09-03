@@ -13,4 +13,14 @@ class NewsItem {
   final String title;
   final String source;
   final String summary;
+
+  factory NewsItem.fromJson(Map<String, dynamic> json) {
+    return NewsItem(
+      id: json['id'] as String,
+      year: json['year'] as int,
+      title: json['title'] as String,
+      source: json['source'] as String,
+      summary: json['summary'] as String,
+    );
+  }
 }

@@ -7,6 +7,12 @@ router = APIRouter(prefix="/api/location", tags=["location"])
 _tour_api_service = TourApiService()
 
 
+@router.get("/all", response_model=list[LocationResponse])
+async def get_all_locations() -> list[LocationResponse]:
+    """Return discoverable locations for the home and explore screens."""
+    return await _tour_api_service.get_all_locations()
+
+
 @router.get("", response_model=LocationResponse)
 async def resolve_location(query: str = Query(..., min_length=1)) -> LocationResponse:
     """자유 입력(주소/학교/아파트)에 대응하는 장소를 반환한다.

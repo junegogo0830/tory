@@ -20,4 +20,16 @@ class HometownLocation {
   /// 인구감소지역(콜드스팟) 여부 — true면 관광 데이터가 희박할 수 있어
   /// 화면 전반에서 빈 상태 폴백을 고려해야 한다.
   final bool isColdSpot;
+
+  factory HometownLocation.fromJson(Map<String, dynamic> json) {
+    return HometownLocation(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      region: json['region'] as String,
+      description: json['description'] as String,
+      pastYear: json['past_year'] as int,
+      currentYear: json['current_year'] as int,
+      isColdSpot: json['is_cold_spot'] as bool? ?? false,
+    );
+  }
 }

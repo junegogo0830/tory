@@ -1,7 +1,13 @@
+import 'package:dio/dio.dart';
+import '../api/api_client.dart';
 import '../models/news_item.dart';
 
 /// 장소별 그 시절 지역 뉴스 아카이브 레포지토리 (목 데이터).
 class ArchiveRepository {
+  ArchiveRepository(this._apiClient);
+
+  final ApiClient _apiClient;
+
   static final Map<String, List<NewsItem>> _mockNews = {
     'suncheon-jeonpo': [
       const NewsItem(
@@ -40,8 +46,17 @@ class ArchiveRepository {
   };
 
   Future<List<NewsItem>> getNewsByLocation(String locationId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    final items = _mockNews[locationId] ?? const [];
+    List<NewsItem> items;
+    try {
+      final response = await _apiClient.dio.get<List<dynamic>>(
+        '/api/archive/$locationId',
+      );
+      items = (response.data ?? const [])
+          .map((json) => NewsItem.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on DioException {
+      items = _mockNews[locationId] ?? const [];
+    }
     final sorted = [...items]..sort((a, b) => a.year.compareTo(b.year));
     return sorted;
   }

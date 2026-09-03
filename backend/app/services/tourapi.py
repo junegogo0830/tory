@@ -103,3 +103,6 @@ class TourApiService:
 
     async def get_location_by_id(self, location_id: str) -> LocationResponse | None:
         return _MOCK_LOCATIONS.get(location_id)
+
+    async def get_all_locations(self) -> list[LocationResponse]:
+        return list(_MOCK_LOCATIONS.values())

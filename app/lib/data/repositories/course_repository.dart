@@ -1,8 +1,14 @@
+import 'package:dio/dio.dart';
+import '../api/api_client.dart';
 import '../models/tour_course.dart';
 
 /// 감성분석 결합 추천 코스 레포지토리 (목 데이터).
 /// 실제 구현에서는 backend `/api/course` 응답(ONNX 감성 서빙 결과 결합)으로 대체한다.
 class CourseRepository {
+  CourseRepository(this._apiClient);
+
+  final ApiClient _apiClient;
+
   static final Map<String, List<TourCourse>> _mockCourses = {
     'suncheon-jeonpo': [
       const TourCourse(
@@ -37,23 +43,45 @@ class CourseRepository {
   };
 
   Future<List<TourCourse>> getCoursesByLocation(String locationId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    return _mockCourses[locationId] ?? const [];
+    try {
+      final response = await _apiClient.dio.get<List<dynamic>>(
+        '/api/course/by-location/$locationId',
+      );
+      return _decodeCourses(response.data);
+    } on DioException {
+      return _mockCourses[locationId] ?? const [];
+    }
   }
 
   /// 코스 탭(전체 목록)에서 사용하는 통합 리스트.
   Future<List<TourCourse>> getAllCourses() async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    return _mockCourses.values.expand((courses) => courses).toList();
+    try {
+      final response = await _apiClient.dio.get<List<dynamic>>('/api/course');
+      return _decodeCourses(response.data);
+    } on DioException {
+      return _mockCourses.values.expand((courses) => courses).toList();
+    }
   }
 
   Future<TourCourse?> getCourseById(String courseId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 150));
-    for (final courses in _mockCourses.values) {
-      for (final course in courses) {
-        if (course.id == courseId) return course;
+    try {
+      final response = await _apiClient.dio.get<Map<String, dynamic>>(
+        '/api/course/detail/$courseId',
+      );
+      final data = response.data;
+      return data == null ? null : TourCourse.fromJson(data);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      for (final courses in _mockCourses.values) {
+        for (final course in courses) {
+          if (course.id == courseId) return course;
+        }
       }
+      return null;
     }
-    return null;
   }
+
+  List<TourCourse> _decodeCourses(List<dynamic>? data) => (data ?? const [])
+      .map((json) => TourCourse.fromJson(json as Map<String, dynamic>))
+      .toList();
 }

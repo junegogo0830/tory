@@ -17,4 +17,15 @@ class TourCourse {
   final double sentimentScore;
   final List<String> stops;
   final String durationLabel;
+
+  factory TourCourse.fromJson(Map<String, dynamic> json) {
+    return TourCourse(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      sentimentScore: (json['sentiment_score'] as num).toDouble(),
+      stops: (json['stops'] as List<dynamic>).cast<String>(),
+      durationLabel: json['duration_label'] as String,
+    );
+  }
 }

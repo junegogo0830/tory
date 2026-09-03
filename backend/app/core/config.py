@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py -> repo root
@@ -9,7 +10,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings):
     env: str = "development"
-    debug: bool = True
+    # Use an app-specific name so unrelated system DEBUG values (for example
+    # "release") cannot prevent the API from starting.
+    debug: bool = Field(default=True, validation_alias="APP_DEBUG")
 
     postgres_host: str = "localhost"
     postgres_port: int = 5432
