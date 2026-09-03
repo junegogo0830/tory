@@ -64,6 +64,7 @@ class _CompareSliderState extends State<CompareSlider> {
                       end: Alignment.bottomRight,
                     ),
                     icon: Icons.photo_camera_outlined,
+                    imagePath: 'assets/images/alley-current.png',
                   ),
                   // 과거(앞 레이어) — seam 위치만큼만 클립.
                   ClipRect(
@@ -76,6 +77,8 @@ class _CompareSliderState extends State<CompareSlider> {
                         end: Alignment.bottomRight,
                       ),
                       icon: Icons.history,
+                      imagePath: 'assets/images/alley-1998.png',
+                      sepia: true,
                     ),
                   ),
                   // 이음새(seam) 모티프: 골드 세로선 + 드래그 핸들.
@@ -96,7 +99,11 @@ class _CompareSliderState extends State<CompareSlider> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Icon(Icons.drag_indicator, size: 16, color: Colors.white),
+                      child: const Icon(
+                        Icons.drag_indicator,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -110,28 +117,97 @@ class _CompareSliderState extends State<CompareSlider> {
 }
 
 class _ImageLayer extends StatelessWidget {
-  const _ImageLayer({required this.label, required this.background, required this.icon});
+  const _ImageLayer({
+    required this.label,
+    required this.background,
+    required this.icon,
+    required this.imagePath,
+    this.sepia = false,
+  });
 
   final String label;
   final Gradient background;
   final IconData icon;
+  final String imagePath;
+  final bool sepia;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(gradient: background),
-      alignment: Alignment.bottomLeft,
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppTypography.footnote.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(decoration: BoxDecoration(gradient: background)),
+        ColorFiltered(
+          colorFilter: sepia
+              ? const ColorFilter.matrix([
+                  0.55,
+                  0.43,
+                  0.12,
+                  0,
+                  0,
+                  0.45,
+                  0.38,
+                  0.10,
+                  0,
+                  0,
+                  0.30,
+                  0.25,
+                  0.08,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                ])
+              : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+          child: Image.asset(imagePath, fit: BoxFit.cover),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.transparent, Color(0x99000000)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0.55, 1],
+            ),
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          left: 14,
+          bottom: 14,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            decoration: BoxDecoration(
+              color: sepia ? const Color(0xAA2E251D) : AppColors.gold,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white54),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: Colors.white, size: 17),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: AppTypography.footnote.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 16,
+          top: 16,
+          child: Text(
+            '과거와 지금',
+            style: AppTypography.title.copyWith(color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -145,5 +221,6 @@ class _LeftClipper extends CustomClipper<Rect> {
   Rect getClip(Size size) => Rect.fromLTWH(0, 0, seamX, size.height);
 
   @override
-  bool shouldReclip(covariant _LeftClipper oldClipper) => oldClipper.seamX != seamX;
+  bool shouldReclip(covariant _LeftClipper oldClipper) =>
+      oldClipper.seamX != seamX;
 }
