@@ -1,0 +1,59 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# --- Flutter / Dart ---
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/build/
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Flutter.podspec
+app/android/.gradle/
+app/android/local.properties
+app/android/key.properties
+app/**/*.g.dart
+app/**/*.freezed.dart
+**/*.iml
+
+# --- Python / FastAPI ---
+# tory-frontend-mock-ui/에도 참고용 backend/ 사본이 있어 top-level 앵커 대신
+# 어디서든 매칭되게 한다 (컴파일 캐시는 어느 디렉터리에 있어도 커밋 대상이 아님).
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/*.egg-info/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/uploads/
+
+# --- ML ---
+ml/data/*
+!ml/data/.gitkeep
+ml/**/__pycache__/
+ml/.venv/
+ml/**/*.onnx
+ml/**/checkpoints/
+
+# --- Infra / DB volumes ---
+infra/pgdata/
+infra/redisdata/
+
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
