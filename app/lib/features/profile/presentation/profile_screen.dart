@@ -47,7 +47,7 @@ class _GuestProfile extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 36),
       children: [
-        Text('프로필', style: AppTypography.largeTitle.copyWith(fontSize: 34)),
+        Text('프로필', style: AppTypography.title),
         const SizedBox(height: 40),
         AppCard(
           child: Column(
@@ -130,10 +130,10 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text('프로필', style: AppTypography.largeTitle.copyWith(fontSize: 34))),
+        Expanded(child: Text('프로필', style: AppTypography.title)),
         IconButton(
           onPressed: () => _showComingSoon(context),
-          icon: const Icon(Icons.settings_outlined, size: 31),
+          icon: const Icon(Icons.settings_outlined, size: 22),
         ),
       ],
     );

@@ -33,7 +33,7 @@ def _no_live_tourapi_calls(monkeypatch: pytest.MonkeyPatch) -> None:
 def _no_live_tourapi_search_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """큐레이션 3곳에 안 걸리는 검색어의 TourAPI 실시간 검색도 유닛 테스트에서는 막는다."""
 
-    async def _no_results(self: TourApiService, query: str, num_rows: int):  # noqa: ARG001, ANN202
+    async def _no_results(self: TourApiService, query: str, num_rows: int, *, content_type_id: str = "12"):  # noqa: ARG001, ANN202
         return []
 
     monkeypatch.setattr(TourApiService, "_search_from_tourapi", _no_results)
@@ -109,6 +109,16 @@ def _no_live_tourapi_nearby_calls(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_live_tourapi_nearby_restaurant_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """카테고리 맛집 목록의 "내 주변" 좌표 검색도 유닛 테스트에서는 네트워크를 타지 않는다."""
+
+    async def _no_nearby_restaurants(self: TourApiService, **kwargs) -> list:  # noqa: ARG001
+        return []
+
+    monkeypatch.setattr(TourApiService, "search_restaurants_nearby", _no_nearby_restaurants)
+
+
+@pytest.fixture(autouse=True)
 def _no_live_anthropic_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """유닛 테스트는 실제 Claude API 호출(과금 발생)에 의존하지 않는다.
 
@@ -131,3 +141,14 @@ def _no_live_anthropic_story_calls(monkeypatch: pytest.MonkeyPatch) -> None:
         return None
 
     monkeypatch.setattr(ArchiveService, "_generate_story", _no_story)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_weather_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """유닛 테스트는 실제 OpenWeatherMap 호출에 의존하지 않는다."""
+    from app.services.weather import WeatherService
+
+    async def _no_weather(self: WeatherService, latitude: float, longitude: float):  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(WeatherService, "_fetch", _no_weather)

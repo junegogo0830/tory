@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/image_proxy.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -113,7 +114,7 @@ class _Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('둘러보기', style: AppTypography.largeTitle.copyWith(fontSize: 34)),
+        Text('둘러보기', style: AppTypography.title),
         const SizedBox(height: 4),
         Text('추억이 머무는 동네를 둘러보세요', style: AppTypography.body.copyWith(color: AppColors.inkSecondary)),
       ],
@@ -144,7 +145,7 @@ class _PlaceCard extends StatelessWidget {
             children: [
               location.imageUrl != null
                   ? CachedNetworkImage(
-                      imageUrl: location.imageUrl!,
+                      imageUrl: resolveImageUrl(location.imageUrl!),
                       fit: BoxFit.cover,
                       errorWidget: (_, _, _) => const PhotoFallback(),
                       placeholder: (_, _) => const PhotoFallback(),

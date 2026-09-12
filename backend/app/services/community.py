@@ -33,15 +33,19 @@ class CommunityService:
         user: User,
         *,
         region: str,
-        file: UploadFile,
+        board: str,
+        file: UploadFile | None = None,
+        title: str | None = None,
         location_id: str | None = None,
         caption: str | None = None,
         memory_year: int | None = None,
     ) -> CommunityPostResponse:
-        photo_path = await self._save_photo(file)
+        photo_path = await self._save_photo(file) if file is not None else None
         post = CommunityPost(
             user_id=user.id,
             region=region,
+            board=board,
+            title=title,
             location_id=location_id,
             photo_path=photo_path,
             caption=caption,
@@ -52,11 +56,13 @@ class CommunityService:
         await db.refresh(post)
         return self._to_response(post, author_nickname=user.nickname)
 
-    async def list_posts(self, db: AsyncSession, *, region: str, limit: int = 20, offset: int = 0) -> list[CommunityPostResponse]:
+    async def list_posts(
+        self, db: AsyncSession, *, region: str, board: str, limit: int = 20, offset: int = 0
+    ) -> list[CommunityPostResponse]:
         result = await db.execute(
             select(CommunityPost, User.nickname)
             .join(User, User.id == CommunityPost.user_id)
-            .where(CommunityPost.region == region)
+            .where(CommunityPost.region == region, CommunityPost.board == board)
             .order_by(desc(CommunityPost.created_at))
             .limit(limit)
             .offset(offset)
@@ -89,8 +95,10 @@ class CommunityService:
             id=post.id,
             author_nickname=author_nickname,
             region=post.region,
+            board=post.board,
+            title=post.title,
             location_id=post.location_id,
-            photo_url=f"/uploads/community/{post.photo_path}",
+            photo_url=f"/uploads/community/{post.photo_path}" if post.photo_path else None,
             caption=post.caption,
             memory_year=post.memory_year,
             created_at=post.created_at,

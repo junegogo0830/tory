@@ -29,6 +29,18 @@ class CourseRepository {
     }
   }
 
+  /// "현재 위치" 기반 코스. 등록된 장소가 아니어도 좌표만으로 생성된다.
+  /// 주변 후보가 부족하면(콜드스팟 등) null.
+  Future<TourCourse?> getCourseByCoords({required double lat, required double lng}) async {
+    final response = await _apiClient.dio.get(
+      '/api/course/nearby',
+      queryParameters: {'lat': lat, 'lng': lng},
+    );
+    final data = response.data;
+    if (data == null) return null;
+    return TourCourse.fromJson(data as Map<String, dynamic>);
+  }
+
   List<TourCourse> _parseList(dynamic data) {
     return (data as List)
         .map((json) => TourCourse.fromJson(json as Map<String, dynamic>))

@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/category_colors.dart';
+import '../../../core/utils/image_proxy.dart';
 import '../../../core/utils/kakao_map_links.dart';
 import '../../../data/models/nearby_place.dart';
 import '../../../data/models/tour_course.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/photo_fallback.dart';
 import '../../home/data/home_providers.dart';
 import '../data/course_providers.dart';
 
@@ -28,8 +31,6 @@ class CourseDetailScreen extends ConsumerWidget {
           if (course == null) {
             return Center(child: Text('코스를 찾을 수 없어요', style: AppTypography.subhead));
           }
-          final scorePercent = (course.sentimentScore * 100).round();
-
           return SafeArea(
             child: ListView(
               padding: const EdgeInsets.all(20),
@@ -39,7 +40,12 @@ class CourseDetailScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(AppRadius.card),
                     child: AspectRatio(
                       aspectRatio: 16 / 10,
-                      child: CachedNetworkImage(imageUrl: course.imageUrl!, fit: BoxFit.cover),
+                      child: CachedNetworkImage(
+                        imageUrl: resolveImageUrl(course.imageUrl!),
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => const PhotoFallback(icon: Icons.route_outlined),
+                        errorWidget: (_, _, _) => const PhotoFallback(icon: Icons.route_outlined),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -49,9 +55,7 @@ class CourseDetailScreen extends ConsumerWidget {
                 Wrap(
                   spacing: 8,
                   children: [
-                    _Badge(label: course.category),
-                    _Badge(label: '감성 $scorePercent%'),
-                    _Badge(label: course.durationLabel),
+                    _Badge(label: course.category, color: pastelForCategory(course.category)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -79,8 +83,25 @@ class CourseDetailScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-        error: (_, _) => Center(
-          child: Text('불러오는 중 문제가 발생했어요', style: AppTypography.subhead),
+        // 원인을 바로 알 수 있게 실제 에러도 화면에 함께 보여준다(디버깅용) —
+        // "불러오는 중 문제가 발생했어요" 하나만 보여주면 재현되는 실제 버그가
+        // 있어도 어디가 문제인지 알 길이 없다.
+        error: (error, _) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('불러오는 중 문제가 발생했어요', style: AppTypography.subhead),
+                const SizedBox(height: 8),
+                Text(
+                  '$error',
+                  style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -88,14 +109,15 @@ class CourseDetailScreen extends ConsumerWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.label});
+  const _Badge({required this.label, this.color});
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: AppColors.accentTint, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(color: color ?? AppColors.accentTint, borderRadius: BorderRadius.circular(999)),
       child: Text(
         label,
         style: AppTypography.caption.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w600),

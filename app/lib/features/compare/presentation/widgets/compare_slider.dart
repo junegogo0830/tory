@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/image_proxy.dart';
 import '../../../../shared/widgets/inline_roadview.dart';
 import '../../../../shared/widgets/photo_fallback.dart';
 
@@ -150,7 +151,7 @@ class _ImageLayer extends StatelessWidget {
     final image = liveContent ??
         (networkImageUrl != null
             ? CachedNetworkImage(
-                imageUrl: networkImageUrl!,
+                imageUrl: resolveImageUrl(networkImageUrl!),
                 fit: BoxFit.cover,
                 placeholder: (_, _) => fallback,
                 errorWidget: (_, _, _) => fallback,

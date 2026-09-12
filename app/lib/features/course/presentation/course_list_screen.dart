@@ -4,15 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/category_colors.dart';
+import '../../../core/utils/image_proxy.dart';
 import '../../../data/models/tour_course.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 import '../data/course_providers.dart';
+import 'widgets/nearby_course_card.dart';
+import 'widgets/region_picker_sheet.dart';
 
 Widget _courseImage(TourCourse course, {required BoxFit fit}) {
   if (course.imageUrl == null) return const PhotoFallback(icon: Icons.route_outlined);
   return CachedNetworkImage(
-    imageUrl: course.imageUrl!,
+    imageUrl: resolveImageUrl(course.imageUrl!),
     fit: fit,
     errorWidget: (_, _, _) => const PhotoFallback(icon: Icons.route_outlined),
     placeholder: (_, _) => const PhotoFallback(icon: Icons.route_outlined),
@@ -58,7 +62,7 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('추천 코스', style: AppTypography.largeTitle.copyWith(fontSize: 34)),
+                              Text('추천 코스', style: AppTypography.title),
                               const SizedBox(height: 5),
                               Text('추억에서 오늘의 여행으로', style: AppTypography.body.copyWith(color: AppColors.inkSecondary)),
                             ],
@@ -67,7 +71,18 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                         const Icon(Icons.map_outlined, size: 35, color: AppColors.accentDeep),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    const NearbyCourseCard(),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => showRegionPickerSheet(context, ref),
+                        icon: const Icon(Icons.map_outlined, size: 18),
+                        label: const Text('지역 선택해서 코스 만들기'),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     SizedBox(
                       height: 44,
                       child: ListView.separated(
@@ -147,8 +162,6 @@ class _FeaturedCourse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scorePercent = (course.sentimentScore * 100).round();
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _cardDecoration(radius: 22),
@@ -166,8 +179,7 @@ class _FeaturedCourse extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(course.title, style: AppTypography.title.copyWith(fontSize: 25)),
-              _InfoPill(icon: Icons.favorite, label: '감성 $scorePercent%', accent: true),
-              _InfoPill(icon: Icons.schedule, label: course.durationLabel),
+              _InfoPill(icon: Icons.category_outlined, label: course.category, pastelColor: pastelForCategory(course.category)),
             ],
           ),
           const SizedBox(height: 12),
@@ -229,26 +241,35 @@ class _RouteStop extends StatelessWidget {
 }
 
 class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.icon, required this.label, this.accent = false});
+  const _InfoPill({required this.icon, required this.label, this.pastelColor});
   final IconData icon;
   final String label;
-  final bool accent;
+  // 카테고리 배지용 파스텔 배경(docs/DESIGN_SYSTEM.md §1.3).
+  final Color? pastelColor;
 
   @override
   Widget build(BuildContext context) {
+    final background = pastelColor ?? AppColors.surface;
+    final foreground = pastelColor != null ? AppColors.accentDeep : AppColors.inkSecondary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: accent ? AppColors.accentTint : AppColors.surface,
+        color: background,
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: accent ? AppColors.accent : AppColors.hairline),
+        border: pastelColor != null ? null : Border.all(color: AppColors.hairline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: accent ? AppColors.accent : AppColors.inkSecondary),
+          Icon(icon, size: 15, color: foreground),
           const SizedBox(width: 5),
-          Text(label, style: AppTypography.footnote.copyWith(color: accent ? AppColors.accentDeep : AppColors.inkSecondary)),
+          Text(
+            label,
+            style: AppTypography.footnote.copyWith(
+              color: foreground,
+            ),
+          ),
         ],
       ),
     );
@@ -261,8 +282,6 @@ class _SmallCourse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scorePercent = (course.sentimentScore * 100).round();
-
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () => context.push('/course/${course.id}'),
@@ -277,15 +296,19 @@ class _SmallCourse extends StatelessWidget {
               child: AspectRatio(aspectRatio: 16 / 9, child: _courseImage(course, fit: BoxFit.cover)),
             ),
             const SizedBox(height: 12),
-            Text(course.title, style: AppTypography.headline),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: [
-                Text('♥ 감성 $scorePercent%', style: AppTypography.footnote.copyWith(color: AppColors.accentDeep)),
-                Text('◷ ${course.durationLabel}', style: AppTypography.footnote),
-              ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: pastelForCategory(course.category),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                course.category,
+                style: AppTypography.caption.copyWith(color: AppColors.accentDeep),
+              ),
             ),
+            const SizedBox(height: 6),
+            Text(course.title, style: AppTypography.headline),
             const SizedBox(height: 8),
             Text(course.description, style: AppTypography.subhead),
           ],

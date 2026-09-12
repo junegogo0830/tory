@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db.models import User
 from ...db.postgres import get_db_session
 from ...models.community import (
+    COMMUNITY_BOARDS,
     CommunityPostResponse,
     HomeRegionRequest,
     HomeRegionResponse,
@@ -32,28 +33,43 @@ async def set_home_region(
     return HomeRegionResponse(region=user.home_region)
 
 
+def _validate_board(board: str) -> None:
+    if board not in COMMUNITY_BOARDS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"알 수 없는 게시판이에요: {board}")
+
+
 @router.get("/posts", response_model=list[CommunityPostResponse])
 async def list_posts(
-    region: str, limit: int = 20, offset: int = 0, db: AsyncSession = Depends(get_db_session)
+    region: str,
+    board: str,
+    limit: int = 20,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db_session),
 ) -> list[CommunityPostResponse]:
-    return await _community_service.list_posts(db, region=region, limit=limit, offset=offset)
+    _validate_board(board)
+    return await _community_service.list_posts(db, region=region, board=board, limit=limit, offset=offset)
 
 
 @router.post("/posts", response_model=CommunityPostResponse)
 async def create_post(
     region: str = Form(...),
+    board: str = Form(...),
+    title: str | None = Form(None),
     location_id: str | None = Form(None),
     caption: str | None = Form(None),
     memory_year: int | None = Form(None),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> CommunityPostResponse:
+    _validate_board(board)
     return await _community_service.create_post(
         db,
         user,
         region=region,
+        board=board,
         file=file,
+        title=title,
         location_id=location_id,
         caption=caption,
         memory_year=memory_year,

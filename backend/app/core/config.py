@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     kakao_map_js_key: str = ""
     kakao_rest_api_key: str = ""
     anthropic_api_key: str = ""
+    openweather_api_key: str = ""
 
     sentiment_model_path: str = "./ml/serving/model.onnx"
 

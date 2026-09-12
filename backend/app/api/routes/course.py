@@ -24,3 +24,10 @@ async def get_course_detail(course_id: str) -> CourseResponse:
 async def get_courses_by_location(location_id: str) -> list[CourseResponse]:
     """감성점수 결합 추천 코스. 데이터가 없으면 빈 리스트를 반환한다."""
     return await _recommendation_service.get_courses_by_location(location_id)
+
+
+@router.get("/nearby", response_model=CourseResponse | None)
+async def get_course_by_coords(lat: float, lng: float) -> CourseResponse | None:
+    """"현재 위치" 기반 코스. 등록된 장소가 아니어도 좌표만으로 생성한다.
+    주변 후보가 부족하면(콜드스팟 등) null."""
+    return await _recommendation_service.get_course_by_coords(lat, lng)

@@ -10,11 +10,13 @@ import '../../../data/models/hometown_location.dart';
 import '../../../data/models/news_item.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/yetgil_mark.dart';
 import '../../archive/data/archive_providers.dart';
-import '../../compare/presentation/widgets/compare_slider.dart';
-import '../../course/data/course_providers.dart';
 import '../data/home_providers.dart';
+import 'widgets/community_preview_section.dart';
+import 'widgets/highlight_carousel.dart';
+import 'widgets/nearby_attractions_tile.dart';
+import 'widgets/restaurant_categories_carousel.dart';
+import 'widgets/weather_top_banner.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -35,9 +37,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _queryController.addListener(_onQueryChanged);
-    // 계속 첫 번째 장소(순천)만 보이지 않도록, 홈에 있는 동안 3초마다 자동으로
-    // 다음 장소로 넘어간다. 검색 중일 땐 건드리지 않는다(자동완성 위로 화면이
-    // 바뀌면 산만하다).
+    // 지역 뉴스 섹션이 계속 첫 번째 장소만 보이지 않도록, 홈에 있는 동안 3초마다
+    // 자동으로 다음 장소로 넘어간다. 검색 중일 땐 건드리지 않는다(자동완성 위로
+    // 화면이 바뀌면 산만하다).
     _carouselTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted || _queryController.text.trim().isNotEmpty) return;
       setState(() => _carouselIndex++);
@@ -175,16 +177,9 @@ class _HomeContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 18, 22, 34),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
       children: [
-        const _TopBar(),
-        const SizedBox(height: 32),
-        Text(
-          '그리운 동네를 찾아보세요',
-          style: AppTypography.largeTitle.copyWith(fontSize: 30, letterSpacing: -0.8),
-        ),
-        const SizedBox(height: 18),
-        _SearchField(controller: controller, onSubmitted: onSubmit),
+        WeatherTopBanner(controller: controller, onSubmitted: onSubmit),
         if (showSuggestions) ...[
           const SizedBox(height: 8),
           _SearchSuggestions(
@@ -193,67 +188,27 @@ class _HomeContent extends StatelessWidget {
             onSelect: onSelectSuggestion,
           ),
         ],
+        const SizedBox(height: 18),
+        const HighlightCarousel(),
+        const SizedBox(height: 22),
+        const NearbyAttractionsTile(),
+        const SizedBox(height: 12),
+        const CommunityPreviewSection(),
+        const SizedBox(height: 22),
+        const RestaurantCategoriesCarousel(),
+        const SizedBox(height: 22),
         if (primary != null) ...[
-          const SizedBox(height: 12),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 450),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(animation),
-                child: child,
-              ),
-            ),
-            child: Column(
-              key: ValueKey(primary!.id),
-              children: [
-                _SelectedPlace(location: primary!),
-                const SizedBox(height: 20),
-                CompareSlider(
-                  pastYear: primary!.pastYear,
-                  currentYear: primary!.currentYear,
-                  currentImageUrl: primary!.imageUrl,
-                  height: 320,
-                ),
-                const SizedBox(height: 24),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth < 700) {
-                      return Column(
-                        children: [
-                          _NewsPanel(locationId: primary!.id),
-                          const SizedBox(height: 16),
-                          _CoursePanel(locationId: primary!.id),
-                        ],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _NewsPanel(locationId: primary!.id)),
-                        const SizedBox(width: 16),
-                        Expanded(child: _CoursePanel(locationId: primary!.id)),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+          _NewsPanel(locationId: primary!.id),
           if (locationCount > 1) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _CarouselDots(count: locationCount, activeIndex: activeIndex),
           ],
-        ] else ...[
-          const SizedBox(height: 40),
+        ] else
           const EmptyState(
             icon: Icons.location_on_outlined,
             title: '아직 둘러본 골목이 없어요',
             message: '고향 주소를 검색하면 그때 그 골목을 보여드릴게요.',
           ),
-        ],
       ],
     );
   }
@@ -282,75 +237,6 @@ class _CarouselDots extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            const YetgilMark(size: 30),
-            const SizedBox(width: 10),
-            Text('옛길', style: AppTypography.largeTitle.copyWith(fontSize: 27)),
-          ],
-        ),
-        InkWell(
-          onTap: () => context.go('/profile'),
-          borderRadius: BorderRadius.circular(99),
-          child: Container(
-            width: 43,
-            height: 43,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.accent, width: 1.4),
-            ),
-            child: const Icon(Icons.person, color: AppColors.accentDeep, size: 24),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onSubmitted});
-
-  final TextEditingController controller;
-  final VoidCallback onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(color: Color(0x16000000), blurRadius: 14, offset: Offset(0, 5)),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        textInputAction: TextInputAction.search,
-        onSubmitted: (_) => onSubmitted(),
-        decoration: InputDecoration(
-          filled: false,
-          hintText: '고향 주소, 학교, 살던 아파트',
-          prefixIcon: const Icon(Icons.search, color: AppColors.inkSecondary, size: 27),
-          suffixIcon: IconButton(
-            onPressed: onSubmitted,
-            icon: const Icon(Icons.arrow_forward, color: AppColors.accentDeep),
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 17),
-        ),
-      ),
     );
   }
 }
@@ -438,40 +324,6 @@ class _SearchSuggestions extends StatelessWidget {
   }
 }
 
-class _SelectedPlace extends StatelessWidget {
-  const _SelectedPlace({required this.location});
-
-  final HometownLocation location;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: () => context.push('/compare/${location.id}'),
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          child: Row(
-            children: [
-              const Icon(Icons.location_on, color: AppColors.accentDeep),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '${location.region} ${location.name}',
-                  style: AppTypography.headline,
-                ),
-              ),
-              const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Panel extends StatelessWidget {
   const _Panel({required this.child});
   final Widget child;
@@ -525,7 +377,7 @@ class _NewsPanel extends ConsumerWidget {
         children: [
           _PanelHeader(
             icon: Icons.newspaper_outlined,
-            title: '그 시절 뉴스',
+            title: '지역 뉴스',
             trailing: TextButton(
               onPressed: () => context.push('/archive/$locationId'),
               child: const Text('더보기'),
@@ -601,91 +453,6 @@ class _NewsRow extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CoursePanel extends ConsumerWidget {
-  const _CoursePanel({required this.locationId});
-
-  final String locationId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final coursesAsync = ref.watch(coursesByLocationProvider(locationId));
-
-    return _Panel(
-      child: coursesAsync.when(
-        data: (courses) {
-          if (courses.isEmpty) {
-            return Column(
-              children: const [
-                _PanelHeader(icon: Icons.map_outlined, title: '현재 추천 코스'),
-                SizedBox(height: 16),
-                Text('이 지역엔 아직 추천 코스가 없어요', style: AppTypography.subhead),
-              ],
-            );
-          }
-          final course = courses.first;
-          return Column(
-            children: [
-              _PanelHeader(
-                icon: Icons.map_outlined,
-                title: '현재 추천 코스',
-                trailing: Row(
-                  children: [
-                    const Icon(Icons.schedule, size: 15, color: AppColors.inkSecondary),
-                    const SizedBox(width: 4),
-                    Text(course.durationLabel, style: AppTypography.caption),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(course.title, style: AppTypography.headline),
-              const SizedBox(height: 4),
-              Text(course.description, style: AppTypography.subhead),
-              const SizedBox(height: 12),
-              for (var i = 0; i < course.stops.length; i++)
-                _CourseStop(number: i + 1, title: course.stops[i].name),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => context.push('/course/${course.id}'),
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('코스 보기'),
-                ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-        error: (_, _) => const Text('코스를 불러오지 못했어요', style: AppTypography.subhead),
-      ),
-    );
-  }
-}
-
-class _CourseStop extends StatelessWidget {
-  const _CourseStop({required this.number, required this.title});
-  final int number;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: AppColors.accent,
-            child: Text('$number', style: const TextStyle(color: Colors.white, fontSize: 12)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(title, style: AppTypography.subhead.copyWith(color: AppColors.ink, fontWeight: FontWeight.w600))),
         ],
       ),
     );

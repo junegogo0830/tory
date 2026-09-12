@@ -69,10 +69,15 @@ class CommunityPost(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     # "경기 수원시 영통구" 같은 지역명 — Kakao 역지오코딩 결과 그대로 저장해 피드 필터링에 쓴다.
     region: Mapped[str] = mapped_column(String(100), index=True)
+    # 게시판 구분: free(자유)/memory(추억)/resident(주민)/info(관광정보). 지역별로 4개
+    # 게시판이 별도로 운영되는 구조라 region+board 조합이 사실상의 "게시판" 단위다.
+    board: Mapped[str] = mapped_column(String(20), index=True, default="free")
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # compare_screen(특정 장소 상세)에서 올렸으면 그 장소 id, 커뮤니티 탭에서 바로 올렸으면 None.
     location_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    # uploads/community/ 기준 상대경로 (예: "3f2a.../photo.jpg"). 절대경로/URL은 저장하지 않는다.
-    photo_path: Mapped[str] = mapped_column(String(300))
+    # uploads/community/ 기준 상대경로 (예: "3f2a.../photo.jpg"). 자유/주민/관광정보
+    # 게시판은 사진 없이 글만 올릴 수 있어 nullable — 추억 게시판만 사진이 사실상 필수.
+    photo_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
     caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
     memory_year: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

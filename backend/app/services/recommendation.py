@@ -1,8 +1,11 @@
 import asyncio
+import datetime
 
 from ..core.season import current_season
 from ..models.course import CourseResponse, CourseStop
+from ..models.location import LocationResponse
 from .course_generator import CourseGeneratorService
+from .kakao_local import KakaoLocalService
 from .sentiment_client import SentimentClient
 from .tourapi import TourApiService
 
@@ -66,12 +69,39 @@ class RecommendationService:
         sentiment_client: SentimentClient | None = None,
         tour_api_service: TourApiService | None = None,
         course_generator_service: CourseGeneratorService | None = None,
+        kakao_local_service: KakaoLocalService | None = None,
     ) -> None:
         self._sentiment_client = sentiment_client or SentimentClient()
         self._tour_api_service = tour_api_service or TourApiService()
         self._course_generator_service = course_generator_service or CourseGeneratorService(
             tour_api_service=self._tour_api_service
         )
+        self._kakao_local_service = kakao_local_service or KakaoLocalService()
+
+    async def get_course_by_coords(self, latitude: float, longitude: float) -> CourseResponse | None:
+        """"현재 위치" 코스. 등록된 장소가 아니어도 된다 — CourseGeneratorService는
+        좌표만 있으면 되고 location이 진짜 관광지일 필요가 없다(id 형식을 검증하지
+        않음). 좌표를 소수점 3자리(~111m)로 반올림해 기존 계절별 캐싱이 GPS
+        지터로 매번 깨지지 않게 한다.
+        """
+        rounded_lat, rounded_lng = round(latitude, 3), round(longitude, 3)
+        region = await self._kakao_local_service.reverse_geocode(rounded_lat, rounded_lng)
+        current_year = datetime.date.today().year
+
+        location = LocationResponse(
+            id=f"coords-{rounded_lat},{rounded_lng}",
+            name=region or "현재 위치",
+            region=region or "",
+            description="",
+            past_year=current_year,
+            current_year=current_year,
+            source="coords",
+            latitude=rounded_lat,
+            longitude=rounded_lng,
+        )
+
+        course = await self._course_generator_service.generate_course(location, current_season())
+        return await self._enrich_course(course) if course is not None else None
 
     async def get_courses_by_location(self, location_id: str) -> list[CourseResponse]:
         curated = _MOCK_COURSES.get(location_id)

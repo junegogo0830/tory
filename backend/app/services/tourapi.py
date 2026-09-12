@@ -162,7 +162,12 @@ class TourApiService:
 
         locations = []
         for place in places:
-            image_url = await self.get_city_image(place["address"])
+            # 이 장소 자체가 등록 관광지면(예: "수원화성") 그 사진을 먼저 쓴다 —
+            # 시/군 대표 사진으로 바로 넘어가면 실제 명소까지 전부 같은 도시
+            # 대표 사진 하나로 뒤덮인다(아파트처럼 등록 안 된 곳만 도시 사진으로 폴백).
+            image_url = await self.find_image_url(place["name"]) or await self.get_city_image(
+                place["address"]
+            )
             location = LocationResponse(
                 id=self._kakao_place_id(place),
                 name=place["name"],
@@ -193,7 +198,76 @@ class TourApiService:
         digest = hashlib.sha1(f"{place['name']}{place['address']}".encode()).hexdigest()[:12]
         return f"kakao-{digest}"
 
-    async def _search_from_tourapi(self, query: str, num_rows: int) -> list[LocationResponse]:
+    async def search_attractions(self, query: str, num_rows: int) -> list[LocationResponse]:
+        """키워드로 등록 관광지(contentTypeId=12)만 검색한다 — HighlightService처럼
+        검색 결과 자체(사진 포함)가 필요한 외부 호출부를 위한 공개 진입점."""
+        return await self._search_from_tourapi(query, num_rows, content_type_id="12")
+
+    async def search_restaurants(self, query: str, num_rows: int) -> list[LocationResponse]:
+        """키워드로 등록 음식점(contentTypeId=39)만 검색한다 — 카테고리별 맛집
+        발견 카드(DiscoveryService)를 위한 공개 진입점."""
+        return await self._search_from_tourapi(query, num_rows, content_type_id="39")
+
+    async def search_restaurants_nearby(
+        self, *, latitude: float, longitude: float, radius_m: int = 3000, num_rows: int = 20
+    ) -> list[LocationResponse]:
+        """현재 위치 반경 내 실제 등록 음식점을 사진 포함으로 반환한다.
+
+        find_nearby_places()는 사진/id 없이 가벼운 리스트만 주는 다른 용도(코스
+        생성 후보)라 재사용할 수 없어서, locationBasedList2를 직접 불러 사진
+        있는 LocationResponse로 반환하는 별도 메서드를 둔다.
+        """
+        if not settings.tour_api_key:
+            return []
+
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(
+                    f"{self._base_url}/locationBasedList2",
+                    params={
+                        "serviceKey": settings.tour_api_key,
+                        "MobileOS": "ETC",
+                        "MobileApp": "Yetgil",
+                        "_type": "json",
+                        "mapX": longitude,
+                        "mapY": latitude,
+                        "radius": radius_m,
+                        "numOfRows": num_rows,
+                        "contentTypeId": "39",
+                        "arrange": "E",  # 거리순
+                    },
+                )
+                response.raise_for_status()
+                body = response.json()
+        except (httpx.HTTPError, ValueError):
+            logger.exception("TourAPI locationBasedList2(restaurants) failed for (%s, %s)", latitude, longitude)
+            return []
+
+        items = body.get("response", {}).get("body", {}).get("items", "")
+        item_list = items.get("item", []) if items else []
+        current_year = datetime.date.today().year
+
+        return [
+            LocationResponse(
+                id=f"tour-{item['contentid']}",
+                name=item.get("title", ""),
+                region=item.get("addr1", ""),
+                description="아직 큐레이션된 그 시절 사진은 없지만, 실시간 로드뷰로 지금 모습은 확인할 수 있어요.",
+                past_year=current_year,
+                current_year=current_year,
+                is_cold_spot=False,
+                source="tourapi",
+                image_url=item.get("firstimage") or item.get("firstimage2") or None,
+                latitude=_parse_coord(item.get("mapy")),
+                longitude=_parse_coord(item.get("mapx")),
+            )
+            for item in item_list
+            if item.get("title")
+        ]
+
+    async def _search_from_tourapi(
+        self, query: str, num_rows: int, *, content_type_id: str = "12"
+    ) -> list[LocationResponse]:
         if not settings.tour_api_key:
             return []
 
@@ -208,10 +282,10 @@ class TourApiService:
                         "MobileApp": "Yetgil",
                         "_type": "json",
                         "numOfRows": num_rows,
-                        # contentTypeId=12(관광지)로 좁히고 사진 있는 것부터(arrange=O) 정렬한다.
-                        # 필터 없이 검색하면 같은 지명의 상점/음식점/약국 등이 뒤섞여 나온다
+                        # contentTypeId으로 좁히고 사진 있는 것부터(arrange=O) 정렬한다.
+                        # 필터 없이 검색하면 같은 지명의 엉뚱한 업종이 뒤섞여 나온다
                         # (예: "해운대" 검색 시 관광지 대신 다이소·안경점이 먼저 나오는 걸 확인함).
-                        "contentTypeId": 12,
+                        "contentTypeId": content_type_id,
                         "arrange": "O",
                     },
                 )
@@ -327,6 +401,22 @@ class TourApiService:
     async def get_location_by_id(self, location_id: str) -> LocationResponse | None:
         if location_id.startswith("tour-"):
             return await self._get_tourapi_detail(location_id)
+
+        if location_id.startswith("coords-"):
+            # "현재 위치" 코스(RecommendationService.get_course_by_coords)가 만드는
+            # 합성 id — 좌표가 id 자체에 그대로 박혀 있어 캐시 없이 재구성할 수
+            # 있다. 코스를 id로 재조회할 때(예: 코스 상세 화면 새로고침) 쓰인다.
+            try:
+                lat_str, lng_str = location_id.removeprefix("coords-").split(",")
+                latitude, longitude = float(lat_str), float(lng_str)
+            except ValueError:
+                return None
+            current_year = datetime.date.today().year
+            return LocationResponse(
+                id=location_id, name="현재 위치", region="", description="",
+                past_year=current_year, current_year=current_year, source="coords",
+                latitude=latitude, longitude=longitude,
+            )
 
         if location_id.startswith("kakao-"):
             # 카카오는 REST로 "id 상세 재조회"가 안 돼서, 검색 시점에 캐싱해둔

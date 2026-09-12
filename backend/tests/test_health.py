@@ -173,6 +173,45 @@ def test_courses_by_location_uses_generated_course_for_non_curated_location(monk
     assert body[0]["stops"][0]["latitude"] == 37.27
 
 
+def test_course_nearby_is_null_when_no_candidates() -> None:
+    # conftest가 find_nearby_places/CourseGeneratorService._generate를 항상 빈값으로 만든다.
+    response = client.get("/api/course/nearby", params={"lat": 37.29, "lng": 127.06})
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_course_nearby_returns_generated_course(monkeypatch) -> None:
+    from app.models.course import CourseResponse, CourseStop
+    from app.services.course_generator import CourseGeneratorService
+
+    async def _fake_generate(self: CourseGeneratorService, location, season):  # noqa: ARG001, ANN001
+        assert location.id.startswith("coords-")
+        assert location.latitude is not None and location.longitude is not None
+        return CourseResponse(
+            id=f"llm-{location.id}-{season}", title="현재 위치 근처 코스",
+            description="설명", sentiment_score=0.7,
+            stops=[CourseStop(name="근처공원", latitude=37.27, longitude=127.05)],
+            duration_label="약 1시간", category="산책",
+        )
+
+    monkeypatch.setattr(CourseGeneratorService, "generate_course", _fake_generate)
+
+    response = client.get("/api/course/nearby", params={"lat": 37.2912, "lng": 127.0613})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "현재 위치 근처 코스"
+    assert body["id"].startswith("llm-coords-37.291,127.061-")
+
+
+def test_get_location_by_coords_id_reconstructs_from_id() -> None:
+    response = client.get("/api/location/coords-37.291,127.061")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["latitude"] == 37.291
+    assert body["longitude"] == 127.061
+    assert body["source"] == "coords"
+
+
 def test_course_includes_category() -> None:
     response = client.get("/api/course/detail/c1")
     assert response.status_code == 200

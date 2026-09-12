@@ -10,11 +10,15 @@ class FeatureShortcutTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badgeColor = AppColors.accentTint,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  // 카테고리 픽토그램 배지 색 (docs/DESIGN_SYSTEM.md §1.3) — 기본값은 기존
+  // accentTint라 지정 안 하면 이전과 동일하게 보인다.
+  final Color badgeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +41,8 @@ class FeatureShortcutTile extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(
-                  color: AppColors.accentTint,
+                decoration: BoxDecoration(
+                  color: badgeColor,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: AppColors.accentDeep, size: 20),

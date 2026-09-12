@@ -8,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/image_proxy.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/photo_fallback.dart';
@@ -123,8 +124,22 @@ class CompareScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-        error: (_, _) => Center(
-          child: Text('불러오는 중 문제가 발생했어요', style: AppTypography.subhead),
+        error: (error, _) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('불러오는 중 문제가 발생했어요', style: AppTypography.subhead),
+                const SizedBox(height: 8),
+                Text(
+                  '$error',
+                  style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -144,7 +159,7 @@ class _HeroImage extends StatelessWidget {
         aspectRatio: 16 / 10,
         child: location.imageUrl != null
             ? CachedNetworkImage(
-                imageUrl: location.imageUrl!,
+                imageUrl: resolveImageUrl(location.imageUrl!),
                 fit: BoxFit.cover,
                 placeholder: (_, _) => const PhotoFallback(),
                 errorWidget: (_, _, _) => const PhotoFallback(),
@@ -172,7 +187,6 @@ class _NearbyCoursePreview extends ConsumerWidget {
       data: (courses) {
         if (courses.isEmpty) return const SizedBox.shrink();
         final course = courses.first;
-        final scorePercent = (course.sentimentScore * 100).round();
 
         return AppCard(
           onTap: () => context.push('/course/${course.id}'),
@@ -203,14 +217,7 @@ class _NearbyCoursePreview extends ConsumerWidget {
               const SizedBox(height: 10),
               Text(course.description, style: AppTypography.subhead),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                children: [
-                  Text('♥ 감성 $scorePercent%', style: AppTypography.caption.copyWith(color: AppColors.accentDeep)),
-                  Text('◷ ${course.durationLabel}', style: AppTypography.caption),
-                  Text(course.stops.map((s) => s.name).join(' · '), style: AppTypography.caption),
-                ],
-              ),
+              Text(course.stops.map((s) => s.name).join(' · '), style: AppTypography.caption),
             ],
           ),
         );
