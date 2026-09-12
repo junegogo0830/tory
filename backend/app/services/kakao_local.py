@@ -113,6 +113,58 @@ class KakaoLocalService:
         except (KeyError, ValueError):
             return None
 
+    async def search_restaurants(
+        self, *, latitude: float, longitude: float, radius_m: int = 5000, limit: int = 15
+    ) -> list[dict]:
+        """좌표 반경 내 실제 음식점(카테고리 코드 FD6)을 거리순으로 반환한다.
+
+        카카오 로컬 API 응답엔 사진/평점 필드가 아예 없다(실제 호출로 확인) —
+        그래서 여기서 돌려주는 dict에도 image_url을 넣지 않는다. 카카오는
+        TourAPI보다 등록 밀도가 훨씬 높아서(같은 반경 기준 실측 최대 10배 이상)
+        "카카오맵 기반" 맛집 카드의 데이터 소스로 쓴다.
+        """
+        if not settings.kakao_rest_api_key:
+            return []
+
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(
+                    f"{self._BASE_URL}/category.json",
+                    headers={"Authorization": f"KakaoAK {settings.kakao_rest_api_key}"},
+                    params={
+                        "category_group_code": "FD6",
+                        "x": longitude,
+                        "y": latitude,
+                        "radius": radius_m,
+                        "size": min(limit, 15),
+                        "sort": "distance",
+                    },
+                )
+                response.raise_for_status()
+                body = response.json()
+        except (httpx.HTTPError, ValueError):
+            logger.exception("Kakao category(FD6) search failed for (%s, %s)", latitude, longitude)
+            return []
+
+        results: list[dict] = []
+        for doc in body.get("documents", []):
+            try:
+                lat, lng = float(doc["y"]), float(doc["x"])
+            except (KeyError, ValueError):
+                continue
+            results.append(
+                {
+                    "id": doc.get("id") or "",
+                    "name": doc.get("place_name") or "",
+                    "category": (doc.get("category_name") or "").split(">")[-1].strip() or "음식점",
+                    "address": doc.get("road_address_name") or doc.get("address_name", ""),
+                    "distance_m": int(doc["distance"]) if doc.get("distance") else None,
+                    "latitude": lat,
+                    "longitude": lng,
+                }
+            )
+        return results
+
     async def search_places(self, query: str, limit: int = 5) -> list[dict]:
         """자유 입력(주소/학교/아파트 등)에 맞는 실제 장소 후보를 찾는다.
 

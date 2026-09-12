@@ -69,7 +69,10 @@ abstract final class AppTheme {
           foregroundColor: AppColors.surface,
           textStyle: AppTypography.headline.copyWith(color: AppColors.surface),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          elevation: 0,
+          // elevation 0(완전 평면)이라 버튼이 눌러볼 만한 입체감 없이 밋밋해
+          // 보인다는 피드백으로, 은은한 톤온톤 그림자를 살짝 얹었다.
+          elevation: 3,
+          shadowColor: AppColors.ink.withValues(alpha: 0.35),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.button),
           ),

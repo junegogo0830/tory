@@ -54,7 +54,7 @@ class _RestaurantCategoriesCarouselState extends ConsumerState<RestaurantCategor
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '지금 뜨는 동네 맛집!',
+              '관광공사 Pick이 궁금하신가요?',
               style: AppTypography.footnote.copyWith(color: AppColors.ink, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),

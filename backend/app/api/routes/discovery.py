@@ -1,6 +1,11 @@
 from fastapi import APIRouter
 
-from ...models.discovery import RestaurantCategoryResponse, RestaurantItemResponse, TopAttractionResponse
+from ...models.discovery import (
+    KakaoRestaurantResponse,
+    RestaurantCategoryResponse,
+    RestaurantItemResponse,
+    TopAttractionResponse,
+)
 from ...services.discovery import DiscoveryService
 
 router = APIRouter(prefix="/api/discovery", tags=["discovery"])
@@ -22,6 +27,11 @@ async def get_restaurants_by_category(category: str) -> list[RestaurantItemRespo
     return await _discovery_service.get_restaurants_by_category(category)
 
 
-@router.get("/restaurants/nearby", response_model=list[RestaurantItemResponse])
-async def get_restaurants_nearby(lat: float, lng: float) -> list[RestaurantItemResponse]:
-    return await _discovery_service.get_restaurants_nearby(latitude=lat, longitude=lng)
+@router.get("/kakao-restaurants", response_model=list[KakaoRestaurantResponse])
+async def get_kakao_restaurants_nationwide() -> list[KakaoRestaurantResponse]:
+    return await _discovery_service.get_kakao_restaurants_nationwide()
+
+
+@router.get("/kakao-restaurants/nearby", response_model=list[KakaoRestaurantResponse])
+async def get_kakao_restaurants_nearby(lat: float, lng: float) -> list[KakaoRestaurantResponse]:
+    return await _discovery_service.get_kakao_restaurants_nearby(latitude=lat, longitude=lng)

@@ -3,14 +3,36 @@ import json
 import logging
 
 from ..db.redis import cache_get, cache_set
-from ..models.discovery import RestaurantCategoryResponse, RestaurantItemResponse, TopAttractionResponse
+from ..models.discovery import (
+    KakaoRestaurantResponse,
+    RestaurantCategoryResponse,
+    RestaurantItemResponse,
+    TopAttractionResponse,
+)
+from .kakao_local import KakaoLocalService
 from .tourapi import TourApiService
 
 logger = logging.getLogger(__name__)
 
 _TOP_ATTRACTIONS_CACHE_KEY = "discovery:top-attractions"
 _RESTAURANT_CATEGORIES_CACHE_KEY = "discovery:restaurant-categories"
+_KAKAO_RESTAURANTS_CACHE_KEY = "discovery:kakao-restaurants"
 _CACHE_TTL_SECONDS = 3600 * 24  # 하루에 한 번 재수집.
+
+# 카카오맵 기반 "전국" 맛집 카드용 — 카카오 카테고리 검색은 좌표 기반이라 진짜
+# "전국"은 없다. 주요 도시 중심 좌표를 돌며 모은 풀을 "전국"으로 대신한다.
+_MAJOR_CITY_COORDS: dict[str, tuple[float, float]] = {
+    "서울": (37.5665, 126.9780),
+    "부산": (35.1587, 129.0603),
+    "대구": (35.8697, 128.5936),
+    "인천": (37.4563, 126.7052),
+    "광주": (35.1495, 126.9165),
+    "대전": (36.3504, 127.3845),
+    "전주": (35.8154, 127.1530),
+    "제주": (33.4996, 126.5312),
+}
+_KAKAO_RESTAURANTS_PER_CITY = 5
+_KAKAO_NEARBY_RADIUS_M = 5000
 
 # "실시간 검색 순위"를 낼 만한 자체 검색 로그 집계 인프라가 아직 없어서, 전국
 # 대표 명소 10곳을 고정 순위로 두고 매일 캐시를 다시 채우는 정적 프록시로
@@ -40,8 +62,13 @@ class DiscoveryService:
     둘 다 TourAPI 실제 데이터를 하루 단위로 캐싱해 재수집하는 동일한 패턴이다.
     """
 
-    def __init__(self, tour_api_service: TourApiService | None = None) -> None:
+    def __init__(
+        self,
+        tour_api_service: TourApiService | None = None,
+        kakao_local_service: KakaoLocalService | None = None,
+    ) -> None:
         self._tour_api_service = tour_api_service or TourApiService()
+        self._kakao_local_service = kakao_local_service or KakaoLocalService()
 
     async def get_top_attractions(self) -> list[TopAttractionResponse]:
         cached = await cache_get(_TOP_ATTRACTIONS_CACHE_KEY)
@@ -141,15 +168,54 @@ class DiscoveryService:
         await cache_set(cache_key, json.dumps([item.model_dump() for item in items]), ex=_CACHE_TTL_SECONDS)
         return items
 
-    async def get_restaurants_nearby(self, *, latitude: float, longitude: float) -> list[RestaurantItemResponse]:
-        """현재 위치 기반 주변 맛집 — 사용자 위치에 따라 매번 달라지므로 캐싱하지 않는다."""
-        locations = await self._tour_api_service.search_restaurants_nearby(
-            latitude=latitude, longitude=longitude, num_rows=_RESTAURANT_LIST_SIZE
+    async def get_kakao_restaurants_nationwide(self) -> list[KakaoRestaurantResponse]:
+        """카카오맵 기반 "전국" 맛집 카드 — 주요 도시 중심 좌표를 돌며 모은 풀을
+        하루 단위로 캐싱한다. 카카오 응답엔 사진이 없어 이름/카테고리/주소만 있다.
+        """
+        cached = await cache_get(_KAKAO_RESTAURANTS_CACHE_KEY)
+        if cached is not None:
+            return [KakaoRestaurantResponse.model_validate(item) for item in json.loads(cached)]
+
+        results = await asyncio.gather(
+            *(
+                self._kakao_local_service.search_restaurants(
+                    latitude=lat, longitude=lng, limit=_KAKAO_RESTAURANTS_PER_CITY
+                )
+                for lat, lng in _MAJOR_CITY_COORDS.values()
+            )
+        )
+        restaurants = [
+            KakaoRestaurantResponse(
+                id=place["id"], name=place["name"], category=place["category"], address=place["address"]
+            )
+            for places in results
+            for place in places
+            if place.get("id")
+        ]
+        if not restaurants:
+            logger.warning("Kakao nationwide restaurants build returned no results (KAKAO_REST_API_KEY missing?)")
+        await cache_set(
+            _KAKAO_RESTAURANTS_CACHE_KEY,
+            json.dumps([r.model_dump() for r in restaurants]),
+            ex=_CACHE_TTL_SECONDS,
+        )
+        return restaurants
+
+    async def get_kakao_restaurants_nearby(
+        self, *, latitude: float, longitude: float
+    ) -> list[KakaoRestaurantResponse]:
+        """카카오맵 기반 "내 주변" 맛집(반경 5km) — 위치에 따라 매번 달라지므로 캐싱하지 않는다."""
+        places = await self._kakao_local_service.search_restaurants(
+            latitude=latitude, longitude=longitude, radius_m=_KAKAO_NEARBY_RADIUS_M, limit=15
         )
         return [
-            RestaurantItemResponse(
-                id=location.id, name=location.name, region=location.region, image_url=location.image_url
+            KakaoRestaurantResponse(
+                id=place["id"],
+                name=place["name"],
+                category=place["category"],
+                address=place["address"],
+                distance_m=place.get("distance_m"),
             )
-            for location in locations
-            if location.image_url is not None
+            for place in places
+            if place.get("id")
         ]

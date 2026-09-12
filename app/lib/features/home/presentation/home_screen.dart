@@ -14,7 +14,9 @@ import '../../archive/data/archive_providers.dart';
 import '../data/home_providers.dart';
 import 'widgets/community_preview_section.dart';
 import 'widgets/highlight_carousel.dart';
+import 'widgets/kakao_restaurant_card.dart';
 import 'widgets/nearby_attractions_tile.dart';
+import 'widgets/quick_action_grid.dart';
 import 'widgets/restaurant_categories_carousel.dart';
 import 'widgets/weather_top_banner.dart';
 
@@ -191,11 +193,15 @@ class _HomeContent extends StatelessWidget {
         const SizedBox(height: 18),
         const HighlightCarousel(),
         const SizedBox(height: 22),
+        const QuickActionGrid(),
+        const SizedBox(height: 22),
+        const RestaurantCategoriesCarousel(),
+        const SizedBox(height: 22),
         const NearbyAttractionsTile(),
         const SizedBox(height: 12),
         const CommunityPreviewSection(),
         const SizedBox(height: 22),
-        const RestaurantCategoriesCarousel(),
+        const KakaoRestaurantCard(),
         const SizedBox(height: 22),
         if (primary != null) ...[
           _NewsPanel(locationId: primary!.id),

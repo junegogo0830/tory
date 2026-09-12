@@ -208,63 +208,6 @@ class TourApiService:
         발견 카드(DiscoveryService)를 위한 공개 진입점."""
         return await self._search_from_tourapi(query, num_rows, content_type_id="39")
 
-    async def search_restaurants_nearby(
-        self, *, latitude: float, longitude: float, radius_m: int = 3000, num_rows: int = 20
-    ) -> list[LocationResponse]:
-        """현재 위치 반경 내 실제 등록 음식점을 사진 포함으로 반환한다.
-
-        find_nearby_places()는 사진/id 없이 가벼운 리스트만 주는 다른 용도(코스
-        생성 후보)라 재사용할 수 없어서, locationBasedList2를 직접 불러 사진
-        있는 LocationResponse로 반환하는 별도 메서드를 둔다.
-        """
-        if not settings.tour_api_key:
-            return []
-
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(
-                    f"{self._base_url}/locationBasedList2",
-                    params={
-                        "serviceKey": settings.tour_api_key,
-                        "MobileOS": "ETC",
-                        "MobileApp": "Yetgil",
-                        "_type": "json",
-                        "mapX": longitude,
-                        "mapY": latitude,
-                        "radius": radius_m,
-                        "numOfRows": num_rows,
-                        "contentTypeId": "39",
-                        "arrange": "E",  # 거리순
-                    },
-                )
-                response.raise_for_status()
-                body = response.json()
-        except (httpx.HTTPError, ValueError):
-            logger.exception("TourAPI locationBasedList2(restaurants) failed for (%s, %s)", latitude, longitude)
-            return []
-
-        items = body.get("response", {}).get("body", {}).get("items", "")
-        item_list = items.get("item", []) if items else []
-        current_year = datetime.date.today().year
-
-        return [
-            LocationResponse(
-                id=f"tour-{item['contentid']}",
-                name=item.get("title", ""),
-                region=item.get("addr1", ""),
-                description="아직 큐레이션된 그 시절 사진은 없지만, 실시간 로드뷰로 지금 모습은 확인할 수 있어요.",
-                past_year=current_year,
-                current_year=current_year,
-                is_cold_spot=False,
-                source="tourapi",
-                image_url=item.get("firstimage") or item.get("firstimage2") or None,
-                latitude=_parse_coord(item.get("mapy")),
-                longitude=_parse_coord(item.get("mapx")),
-            )
-            for item in item_list
-            if item.get("title")
-        ]
-
     async def _search_from_tourapi(
         self, query: str, num_rows: int, *, content_type_id: str = "12"
     ) -> list[LocationResponse]:

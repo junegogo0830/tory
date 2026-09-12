@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -13,9 +12,9 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 
-/// "자세히보기"로 들어오는 카테고리 맛집 전체 목록. 처음엔 그 카테고리의 전국
-/// 맛집을 보여주고, 상단 "내 주변" 버튼을 누르면 현재 위치 기반 주변 맛집으로
-/// 바뀐다(카테고리 구분 없이 — 위치 반경 안 실제 음식점 전체).
+/// "자세히보기"로 들어오는 관광공사 Pick 카테고리 맛집 전체 목록(전국).
+/// 위치 기반 "내 주변" 보기는 별도의 카카오맵 기반 맛집 카드/화면으로 옮겨서
+/// 여기서는 뺐다.
 class CategoryRestaurantListScreen extends ConsumerStatefulWidget {
   const CategoryRestaurantListScreen({super.key, required this.category});
 
@@ -26,21 +25,17 @@ class CategoryRestaurantListScreen extends ConsumerStatefulWidget {
 }
 
 class _CategoryRestaurantListScreenState extends ConsumerState<CategoryRestaurantListScreen> {
-  bool _nearbyMode = false;
   bool _isLoading = true;
   List<RestaurantItem> _items = const [];
 
   @override
   void initState() {
     super.initState();
-    _loadCategory();
+    _load();
   }
 
-  Future<void> _loadCategory() async {
-    setState(() {
-      _isLoading = true;
-      _nearbyMode = false;
-    });
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
     try {
       final items = await ref.read(discoveryRepositoryProvider).getRestaurantsByCategory(widget.category);
       if (!mounted) return;
@@ -57,45 +52,6 @@ class _CategoryRestaurantListScreenState extends ConsumerState<CategoryRestauran
     }
   }
 
-  Future<void> _loadNearby() async {
-    setState(() => _isLoading = true);
-    try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        _showMessage('위치 권한이 필요해요');
-        return;
-      }
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        _showMessage('기기의 위치 서비스를 켜주세요');
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-      );
-      final items = await ref
-          .read(discoveryRepositoryProvider)
-          .getRestaurantsNearby(lat: position.latitude, lng: position.longitude);
-      if (!mounted) return;
-      setState(() {
-        _items = items;
-        _nearbyMode = true;
-      });
-    } catch (_) {
-      _showMessage('위치를 가져오지 못했어요. 다시 시도해주세요.');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,36 +65,22 @@ class _CategoryRestaurantListScreenState extends ConsumerState<CategoryRestauran
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _nearbyMode ? '내 주변 맛집' : '전국 ${widget.category} 맛집',
-                          style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _nearbyMode ? _loadCategory : _loadNearby,
-                        icon: Icon(_nearbyMode ? Icons.restaurant_menu : Icons.location_searching, size: 16),
-                        label: Text(_nearbyMode ? '카테고리로 보기' : '내 주변으로 보기'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          textStyle: AppTypography.caption,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ],
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '관광공사 Pick · 전국 ${widget.category} 맛집',
+                      style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary),
+                    ),
                   ),
                 ),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
                       : _items.isEmpty
-                          ? EmptyState(
+                          ? const EmptyState(
                               icon: Icons.restaurant_outlined,
                               title: '맛집을 찾지 못했어요',
-                              message: _nearbyMode ? '이 근처는 아직 등록된 맛집이 부족해요.' : '잠시 후 다시 시도해주세요.',
+                              message: '잠시 후 다시 시도해주세요.',
                             )
                           : ListView.separated(
                               padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),

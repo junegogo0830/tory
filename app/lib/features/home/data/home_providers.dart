@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/highlight_card.dart';
 import '../../../data/models/hometown_location.dart';
+import '../../../data/models/kakao_restaurant.dart';
 import '../../../data/models/nearby_place.dart';
 import '../../../data/models/restaurant_category.dart';
 import '../../../data/models/top_attraction.dart';
@@ -47,4 +48,17 @@ final topAttractionsProvider = FutureProvider<List<TopAttraction>>((ref) {
 final restaurantCategoriesProvider = FutureProvider<List<RestaurantCategory>>((ref) {
   final repo = ref.watch(discoveryRepositoryProvider);
   return repo.getRestaurantCategories();
+});
+
+/// 카카오맵 기반 맛집 카드 "전국" 모드용. 하루 단위로 백엔드에서 캐싱된다.
+final kakaoRestaurantsNationwideProvider = FutureProvider<List<KakaoRestaurant>>((ref) {
+  final repo = ref.watch(discoveryRepositoryProvider);
+  return repo.getKakaoRestaurantsNationwide();
+});
+
+/// 카카오맵 기반 맛집 카드 "내 주변" 모드용(반경 5km) — 좌표가 바뀌면 다시 조회한다.
+final kakaoRestaurantsNearbyProvider =
+    FutureProvider.family<List<KakaoRestaurant>, ({double lat, double lng})>((ref, coords) {
+  final repo = ref.watch(discoveryRepositoryProvider);
+  return repo.getKakaoRestaurantsNearby(lat: coords.lat, lng: coords.lng);
 });

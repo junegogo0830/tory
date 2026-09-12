@@ -109,13 +109,13 @@ def _no_live_tourapi_nearby_calls(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _no_live_tourapi_nearby_restaurant_calls(monkeypatch: pytest.MonkeyPatch) -> None:
-    """카테고리 맛집 목록의 "내 주변" 좌표 검색도 유닛 테스트에서는 네트워크를 타지 않는다."""
+def _no_live_kakao_restaurant_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """카카오맵 기반 맛집 카드(전국/내 주변)도 유닛 테스트에서는 네트워크를 타지 않는다."""
 
-    async def _no_nearby_restaurants(self: TourApiService, **kwargs) -> list:  # noqa: ARG001
+    async def _no_restaurants(self: KakaoLocalService, **kwargs) -> list:  # noqa: ARG001
         return []
 
-    monkeypatch.setattr(TourApiService, "search_restaurants_nearby", _no_nearby_restaurants)
+    monkeypatch.setattr(KakaoLocalService, "search_restaurants", _no_restaurants)
 
 
 @pytest.fixture(autouse=True)

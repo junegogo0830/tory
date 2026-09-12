@@ -11,6 +11,7 @@ import '../../features/course/presentation/nearby_map_screen.dart';
 import '../../features/home/presentation/category_restaurant_list_screen.dart';
 import '../../features/home/presentation/explore_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/home/presentation/kakao_restaurant_list_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import 'app_shell.dart';
 
@@ -90,6 +91,18 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => CategoryRestaurantListScreen(
         category: state.pathParameters['category']!,
       ),
+    ),
+    GoRoute(
+      path: '/kakao-restaurants',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final lat = state.uri.queryParameters['lat'];
+        final lng = state.uri.queryParameters['lng'];
+        return KakaoRestaurantListScreen(
+          lat: lat != null ? double.parse(lat) : null,
+          lng: lng != null ? double.parse(lng) : null,
+        );
+      },
     ),
     GoRoute(
       path: '/nearby-map',
