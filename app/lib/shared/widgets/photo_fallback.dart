@@ -14,7 +14,7 @@ class PhotoFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [AppColors.accentTint, AppColors.paper],
           begin: Alignment.topLeft,

@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +8,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/image_proxy.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/photo_fallback.dart';
@@ -62,6 +61,13 @@ class CompareScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 _HeroImage(location: location),
+                if (location.imageSourceName != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '${location.name} 사진이 없어서 가까운 ${location.imageSourceName} 사진을 보여드려요.',
+                    style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 Text(location.name, style: AppTypography.largeTitle),
                 const SizedBox(height: 4),
@@ -158,8 +164,8 @@ class _HeroImage extends StatelessWidget {
       child: AspectRatio(
         aspectRatio: 16 / 10,
         child: location.imageUrl != null
-            ? CachedNetworkImage(
-                imageUrl: resolveImageUrl(location.imageUrl!),
+            ? AppNetworkImage(
+                imageUrl: location.imageUrl!,
                 fit: BoxFit.cover,
                 placeholder: (_, _) => const PhotoFallback(),
                 errorWidget: (_, _, _) => const PhotoFallback(),
@@ -211,7 +217,7 @@ class _NearbyCoursePreview extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
+                  Icon(Icons.chevron_right, color: AppColors.inkTertiary),
                 ],
               ),
               const SizedBox(height: 10),
@@ -256,7 +262,7 @@ class _ActionRow extends StatelessWidget {
             ],
           ),
         ),
-        const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
+        Icon(Icons.chevron_right, color: AppColors.inkTertiary),
       ],
     );
   }

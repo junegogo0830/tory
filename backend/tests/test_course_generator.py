@@ -3,6 +3,8 @@ import pytest
 from app.models.location import LocationResponse
 from app.services.course_generator import CourseGeneratorService, _extract_json
 
+_REAL_GENERATE = CourseGeneratorService._generate
+
 
 def _location(**overrides) -> LocationResponse:
     base = dict(
@@ -91,3 +93,30 @@ def test_parse_course_clamps_out_of_range_sentiment_score() -> None:
     course = service._parse_course(text, location=_location(), season="가을", candidates=candidates)
     assert course is not None
     assert course.sentiment_score == 1.0
+
+
+@pytest.mark.asyncio
+async def test_ai_request_does_not_block_other_requests(monkeypatch):
+    import asyncio
+    import threading
+    import time
+    from types import SimpleNamespace
+    completed=threading.Event()
+    started=threading.Event()
+    class Tour:
+        async def find_nearby_places(self, **kwargs): return [_candidate('A'), _candidate('B')]
+    def create(**kwargs):
+        started.set()
+        time.sleep(.1)
+        completed.set()
+        return SimpleNamespace(content=[SimpleNamespace(type='text',text='{"title":"t","description":"d","duration_label":"1h","sentiment_score":0.5,"stops":["A","B"]}')])
+    service=CourseGeneratorService(tour_api_service=Tour())
+    monkeypatch.setattr(service,'_get_client',lambda: SimpleNamespace(messages=SimpleNamespace(create=create)))
+    async def health_check():
+        for _ in range(100):
+            if started.is_set(): break
+            await asyncio.sleep(.001)
+        assert started.is_set()
+        assert not completed.is_set(), 'AI I/O blocked the event loop'
+    course, _=await asyncio.gather(_REAL_GENERATE(service,_location(latitude=37.1,longitude=127.1),'가을'),health_check())
+    assert course is not None

@@ -155,7 +155,58 @@ def test_kakao_restaurants_nationwide_pools_major_cities(monkeypatch) -> None:
     from app.services.discovery import _MAJOR_CITY_COORDS
 
     assert len(body) == len(_MAJOR_CITY_COORDS) * 2
-    assert all("image_url" not in item for item in body)
+    # conftest가 TourAPI 사진 조회를 항상 막아두므로, 필드는 존재하되(스키마에
+    # 항상 있음) 값은 비어 있어야 한다.
+    assert all(item["image_url"] is None for item in body)
+
+
+def test_kakao_restaurants_nationwide_adds_tourapi_photo_when_matched(monkeypatch) -> None:
+    from app.services.kakao_local import KakaoLocalService
+    from app.services.tourapi import TourApiService
+
+    async def _fake_search(self: KakaoLocalService, *, latitude: float, longitude: float, **kwargs):  # noqa: ARG001
+        return [
+            {"id": f"kakao-{latitude}", "name": "이성당", "category": "베이커리",
+             "address": "군산시", "distance_m": None, "latitude": latitude, "longitude": longitude},
+        ]
+
+    async def _fake_place_info(self: TourApiService, keyword: str) -> dict | None:
+        if keyword == "이성당":
+            return {"image_url": "http://example.com/isungdang.jpg", "latitude": 35.97, "longitude": 126.73}
+        return None
+
+    monkeypatch.setattr(KakaoLocalService, "search_restaurants", _fake_search)
+    monkeypatch.setattr(TourApiService, "_search_first_place", _fake_place_info)
+
+    response = client.get("/api/discovery/kakao-restaurants")
+    assert response.status_code == 200
+    body = response.json()
+    assert all(item["image_url"] == "http://example.com/isungdang.jpg" for item in body)
+
+
+def test_kakao_restaurants_nearby_expands_radius_when_too_few(monkeypatch) -> None:
+    from app.services.discovery import _KAKAO_NEARBY_RADII_M
+    from app.services.kakao_local import KakaoLocalService
+
+    seen_radii: list[int] = []
+
+    async def _fake_nearby(self: KakaoLocalService, *, radius_m: int, **kwargs):  # noqa: ARG001
+        seen_radii.append(radius_m)
+        if radius_m < _KAKAO_NEARBY_RADII_M[-1]:
+            return [{"id": "kakao-1", "name": "가까운집", "category": "한식",
+                      "address": "어딘가", "distance_m": radius_m, "latitude": 37.29, "longitude": 127.06}]
+        return [
+            {"id": f"kakao-{i}", "name": f"집{i}", "category": "한식",
+             "address": "어딘가", "distance_m": 4000, "latitude": 37.29, "longitude": 127.06}
+            for i in range(5)
+        ]
+
+    monkeypatch.setattr(KakaoLocalService, "search_restaurants", _fake_nearby)
+
+    response = client.get("/api/discovery/kakao-restaurants/nearby", params={"lat": 37.29, "lng": 127.06})
+    assert response.status_code == 200
+    assert seen_radii == _KAKAO_NEARBY_RADII_M
+    assert len(response.json()) == 5
 
 
 def test_kakao_restaurants_nearby_returns_items(monkeypatch) -> None:

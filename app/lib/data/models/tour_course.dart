@@ -1,11 +1,21 @@
 /// 코스의 한 정류지. 실제 등록된 장소와 매칭됐을 때만 좌표가 채워진다 —
 /// 있으면 카카오맵 길찾기 딥링크를 만들 수 있고, 없으면 이름만 보여준다.
 class CourseStop {
-  const CourseStop({required this.name, this.latitude, this.longitude});
+  const CourseStop({
+    required this.name,
+    this.latitude,
+    this.longitude,
+    this.category = '',
+    this.address = '',
+    this.stayMinutes = 30,
+  });
 
   final String name;
   final double? latitude;
   final double? longitude;
+  final String category;
+  final String address;
+  final int stayMinutes;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
@@ -14,6 +24,9 @@ class CourseStop {
       name: json['name'] as String,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      category: json['category'] as String? ?? '',
+      address: json['address'] as String? ?? '',
+      stayMinutes: json['stay_minutes'] as int? ?? 30,
     );
   }
 }
@@ -30,6 +43,9 @@ class TourCourse {
     required this.category,
     this.imageUrl,
     this.locationId = '',
+    this.weatherLabel = '',
+    this.distanceKm,
+    this.notes = const [],
   });
 
   final String id;
@@ -50,6 +66,9 @@ class TourCourse {
 
   /// 이 코스가 속한 장소 id. "주변 맛집" 등 장소 기반 부가 정보를 조회할 때 쓴다.
   final String locationId;
+  final String weatherLabel;
+  final double? distanceKm;
+  final List<String> notes;
 
   /// 백엔드 `CourseResponse` 스키마(snake_case)를 파싱한다.
   factory TourCourse.fromJson(Map<String, dynamic> json) {
@@ -65,6 +84,9 @@ class TourCourse {
       category: json['category'] as String,
       imageUrl: json['image_url'] as String?,
       locationId: json['location_id'] as String? ?? '',
+      weatherLabel: json['weather_label'] as String? ?? '',
+      distanceKm: (json['estimated_distance_km'] as num?)?.toDouble(),
+      notes: (json['notes'] as List? ?? []).cast<String>(),
     );
   }
 }

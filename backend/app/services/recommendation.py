@@ -2,6 +2,7 @@ import asyncio
 import datetime
 
 from ..core.season import current_season
+from ..db.redis import cache_get, cache_set
 from ..models.course import CourseResponse, CourseStop
 from ..models.location import LocationResponse
 from .course_generator import CourseGeneratorService
@@ -55,6 +56,24 @@ _MOCK_COURSES: dict[str, list[CourseResponse]] = {
     ],
     "yeongwol-jang": [],
 }
+
+
+# Curated suggestions; travel between distant sites is explicitly marked as transport.
+_EXTRA_COURSES = [
+    ('c4','gunsan-jungang','군산 영화 속 골목 산책','산책',['초원사진관','신흥동 일본식가옥','동국사'],'약 2시간','영화의 한 장면을 떠올리며 원도심 골목을 천천히 걸어요.'),
+    ('c5','gunsan-jungang','군산 한 끼와 빵집 여행','미식',['한일옥','이성당','미즈커피'],'약 2시간','군산 원도심에서 식사, 빵, 커피를 나누어 즐기는 여행이에요.'),
+    ('c6','gunsan-jungang','군산 근대 전시관 나들이','문화',['군산근대역사박물관','군산근대미술관','군산근대건축관'],'약 3시간','전시 공간을 이어 보며 항구도시의 시간을 만나요.'),
+    ('c7','yeongwol-jang','영월 단종의 발자취','역사',['영월 장릉','청령포'],'약 3시간 · 차량 이동','단종의 흔적과 강변 풍경을 함께 돌아보는 역사 여행이에요.'),
+    ('c8','yeongwol-jang','영월 강과 숲의 풍경','자연',['청령포','영월 선돌'],'약 3시간 · 차량 이동','강과 소나무숲, 바위 절경을 쉬어가며 감상해요.'),
+    ('c9','gunsan-jungang','가족과 만나는 군산의 기억','가족',['군산근대역사박물관','초원사진관','경암동 철길마을'],'약 4시간 · 일부 차량 이동','전시 관람과 사진, 철길 풍경을 가족의 새로운 추억으로 남겨요.'),
+    ('c10','suncheon-jeonpo','순천 정원과 습지 하루','자연',['순천만국가정원','순천만습지'],'약 5시간 · 차량 이동','정원과 습지를 충분히 둘러보는 여유로운 일정이에요.'),
+    ('c11','yeongwol-jang','영월 예술과 강변 여행','문화',['젊은달와이파크','청령포'],'약 5시간 · 차량 이동','현대미술 공간과 강변 경관을 함께 만나는 하루예요.'),
+]
+for cid, lid, title, category, stops, duration, description in _EXTRA_COURSES:
+    _MOCK_COURSES[lid].append(CourseResponse(id=cid, location_id=lid, title=title, category=category, stops=[CourseStop(name=n) for n in stops], duration_label=duration, description=description, sentiment_score=0, notes=['운영일·입장료·실제 이동 경로는 방문 전에 확인해주세요.']))
+# The original three-stop sunset route is not a continuous walking route.
+_MOCK_COURSES['suncheon-jeonpo'][0].duration_label = '약 5시간 · 차량 이동'
+_MOCK_COURSES['suncheon-jeonpo'][0].notes = ['도심과 정원·습지 사이는 차량 또는 대중교통으로 이동해주세요.']
 
 
 class RecommendationService:
@@ -122,6 +141,9 @@ class RecommendationService:
         return list(await asyncio.gather(*(self._enrich_course(c) for c in courses)))
 
     async def get_course_by_id(self, course_id: str) -> CourseResponse | None:
+        cached = await cache_get(f"course-detail:{course_id}")
+        if cached:
+            return CourseResponse.model_validate_json(cached)
         if course_id.startswith("llm-"):
             return await self._get_generated_course(course_id)
 
@@ -154,6 +176,9 @@ class RecommendationService:
           정류지만 채운다 (예: "저전동 골목"은 등록 관광지가 아니라 못 찾음).
         - 대표 사진: 원래 정류지 순서상 가장 앞선, 검색에 걸린 정류지의 사진을 쓴다.
         """
+        cached = await cache_get(f"enriched-course:v2:{course.id}")
+        if cached:
+            return CourseResponse.model_validate_json(cached)
         infos = await asyncio.gather(
             *(self._tour_api_service.find_place_info(stop.name) for stop in course.stops)
         )
@@ -173,4 +198,7 @@ class RecommendationService:
             if location is not None:
                 image_url = await self._tour_api_service.get_city_image(location.region)
 
-        return course.model_copy(update={"stops": enriched_stops, "image_url": image_url})
+        result = course.model_copy(update={"stops": enriched_stops, "image_url": image_url})
+        await cache_set(f"enriched-course:v2:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
+        await cache_set(f"course-detail:{course.id}", result.model_dump_json(), ex=86400)
+        return result

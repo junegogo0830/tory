@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 릴리스 빌드에서도 네트워크 호출(백엔드 API, 카카오 로그인)이 되려면 필요.
          디버그 매니페스트에만 있던 것과 별개로 release에도 명시해야 한다. -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -39,8 +40,9 @@
              android/app/build.gradle.kts가 android/local.properties의
              kakao.nativeAppKey 값으로 채우는 manifest placeholder다. -->
         <activity
-            android:name="com.kakao.sdk.flutter.AuthCodeCustomTabsActivity"
-            android:exported="true">
+            android:name="com.kakao.sdk.flutter.auth.CustomTabsActivity"
+            android:exported="true"
+            tools:replace="android:exported">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

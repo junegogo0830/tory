@@ -4,8 +4,11 @@ import 'app_colors.dart';
 const String _fontFamily = 'Pretendard';
 
 /// 옛길 디자인 시스템 타입스케일 (iOS 타입스케일 기반).
+///
+/// 색상은 [AppColors]의 다크모드 대응 getter를 그대로 물려받기 위해 static
+/// getter로 만들었다 — 다크모드 전환 시 텍스트 색이 함께 바뀌어야 하기 때문.
 abstract final class AppTypography {
-  static const TextStyle largeTitle = TextStyle(
+  static TextStyle get largeTitle => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 27,
     fontWeight: FontWeight.w700,
@@ -13,7 +16,7 @@ abstract final class AppTypography {
     height: 1.2,
   );
 
-  static const TextStyle title = TextStyle(
+  static TextStyle get title => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 20,
     fontWeight: FontWeight.w600,
@@ -21,7 +24,7 @@ abstract final class AppTypography {
     height: 1.25,
   );
 
-  static const TextStyle headline = TextStyle(
+  static TextStyle get headline => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 17,
     fontWeight: FontWeight.w600,
@@ -29,7 +32,7 @@ abstract final class AppTypography {
     height: 1.3,
   );
 
-  static const TextStyle body = TextStyle(
+  static TextStyle get body => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 16,
     fontWeight: FontWeight.w400,
@@ -37,7 +40,7 @@ abstract final class AppTypography {
     height: 1.4,
   );
 
-  static const TextStyle subhead = TextStyle(
+  static TextStyle get subhead => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 14,
     fontWeight: FontWeight.w400,
@@ -45,7 +48,7 @@ abstract final class AppTypography {
     height: 1.35,
   );
 
-  static const TextStyle footnote = TextStyle(
+  static TextStyle get footnote => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 13,
     fontWeight: FontWeight.w400,
@@ -53,7 +56,7 @@ abstract final class AppTypography {
     height: 1.3,
   );
 
-  static const TextStyle caption = TextStyle(
+  static TextStyle get caption => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 11,
     fontWeight: FontWeight.w400,
@@ -63,7 +66,7 @@ abstract final class AppTypography {
 
   /// 통계/숫자 강조 페어 (2:1 비율). 감성 점수·연도·소요 시간처럼
   /// 시선이 숫자에 먼저 가야 하는 곳에 [statUnit]과 짝으로 쓴다.
-  static const TextStyle statNumber = TextStyle(
+  static TextStyle get statNumber => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 48,
     fontWeight: FontWeight.w700,
@@ -71,7 +74,7 @@ abstract final class AppTypography {
     height: 1.1,
   );
 
-  static const TextStyle statUnit = TextStyle(
+  static TextStyle get statUnit => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 24,
     fontWeight: FontWeight.w400,

@@ -7,9 +7,27 @@ class CourseRepository {
   CourseRepository(this._apiClient);
 
   final ApiClient _apiClient;
+  final Map<String, TourCourse> _generated = {};
+
+  Future<TourCourse> generate(
+    Map<String, dynamic> preferences, {
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _apiClient.dio.post(
+      '/api/course/generate',
+      data: preferences,
+      cancelToken: cancelToken,
+      options: Options(receiveTimeout: const Duration(seconds: 22)),
+    );
+    final course = TourCourse.fromJson(response.data as Map<String, dynamic>);
+    _generated[course.id] = course;
+    return course;
+  }
 
   Future<List<TourCourse>> getCoursesByLocation(String locationId) async {
-    final response = await _apiClient.dio.get('/api/course/by-location/$locationId');
+    final response = await _apiClient.dio.get(
+      '/api/course/by-location/$locationId',
+    );
     return _parseList(response.data);
   }
 
@@ -20,6 +38,7 @@ class CourseRepository {
   }
 
   Future<TourCourse?> getCourseById(String courseId) async {
+    if (_generated.containsKey(courseId)) return _generated[courseId];
     try {
       final response = await _apiClient.dio.get('/api/course/detail/$courseId');
       return TourCourse.fromJson(response.data as Map<String, dynamic>);
@@ -31,7 +50,10 @@ class CourseRepository {
 
   /// "현재 위치" 기반 코스. 등록된 장소가 아니어도 좌표만으로 생성된다.
   /// 주변 후보가 부족하면(콜드스팟 등) null.
-  Future<TourCourse?> getCourseByCoords({required double lat, required double lng}) async {
+  Future<TourCourse?> getCourseByCoords({
+    required double lat,
+    required double lng,
+  }) async {
     final response = await _apiClient.dio.get(
       '/api/course/nearby',
       queryParameters: {'lat': lat, 'lng': lng},

@@ -1,4 +1,5 @@
 import '../api/api_client.dart';
+import '../models/hometown_location.dart';
 import '../models/kakao_restaurant.dart';
 import '../models/restaurant_category.dart';
 import '../models/top_attraction.dart';
@@ -50,6 +51,18 @@ class DiscoveryRepository {
     );
     return (response.data as List)
         .map((json) => KakaoRestaurant.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 둘러보기 탭 "다른 사람들이 둘러본 골목" — 실제로 찜한 사용자 수 기준 인기 장소.
+  /// 아직 아무도 안 찜했으면 빈 리스트(호출부가 큐레이션 목록으로 폴백).
+  Future<List<HometownLocation>> getPopularLocations({int limit = 10}) async {
+    final response = await _apiClient.dio.get(
+      '/api/discovery/popular-locations',
+      queryParameters: {'limit': limit},
+    );
+    return (response.data as List)
+        .map((json) => HometownLocation.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 }

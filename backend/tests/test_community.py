@@ -15,7 +15,7 @@ def test_create_post_requires_auth() -> None:
     response = client.post(
         "/api/community/posts",
         data={"region": "경기 수원시 영통구", "board": "memory"},
-        files={"file": ("photo.jpg", b"fake-bytes", "image/jpeg")},
+        files={"files": ("photo.jpg", b"fake-bytes", "image/jpeg")},
     )
     assert response.status_code == 401
 
@@ -40,7 +40,7 @@ def test_create_post_rejects_non_image_content_type(monkeypatch) -> None:
         response = client.post(
             "/api/community/posts",
             data={"region": "경기 수원시 영통구", "board": "memory"},
-            files={"file": ("note.txt", b"not-an-image", "text/plain")},
+            files={"files": ("note.txt", b"not-an-image", "text/plain")},
         )
         assert response.status_code == 415
     finally:
@@ -53,7 +53,7 @@ def test_create_post_rejects_unknown_board() -> None:
         response = client.post(
             "/api/community/posts",
             data={"region": "경기 수원시 영통구", "board": "not-a-real-board"},
-            files={"file": ("photo.jpg", b"fake-bytes", "image/jpeg")},
+            files={"files": ("photo.jpg", b"fake-bytes", "image/jpeg")},
         )
         assert response.status_code == 400
     finally:
@@ -77,6 +77,7 @@ def test_create_post_uses_community_service(monkeypatch) -> None:
         captured.update(kwargs)
         return CommunityPostResponse(
             id=1,
+            author_id=user.id,
             author_nickname=user.nickname,
             region=kwargs["region"],
             board=kwargs["board"],
@@ -99,7 +100,7 @@ def test_create_post_uses_community_service(monkeypatch) -> None:
                 "caption": "그 시절 우리 동네",
                 "memory_year": "1998",
             },
-            files={"file": ("photo.jpg", io.BytesIO(b"fake-bytes").read(), "image/jpeg")},
+            files={"files": ("photo.jpg", io.BytesIO(b"fake-bytes").read(), "image/jpeg")},
         )
         assert response.status_code == 200
         body = response.json()
@@ -116,10 +117,11 @@ def test_list_posts_uses_community_service(monkeypatch) -> None:
     from app.models.community import CommunityPostResponse
     from app.services.community import CommunityService
 
-    async def _fake_list_posts(self: CommunityService, db, *, region, board, limit=20, offset=0):  # noqa: ANN001, ARG001
+    async def _fake_list_posts(self: CommunityService, db, *, region, board, limit=20, offset=0, viewer_id=None, query=""):  # noqa: ANN001, ARG001
         return [
             CommunityPostResponse(
                 id=1,
+                author_id=1,
                 author_nickname="옛길이",
                 region=region,
                 board=board,

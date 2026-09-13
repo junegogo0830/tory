@@ -51,7 +51,7 @@ Future<void> _openNearbyMap(BuildContext context) async {
     }
 
     final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
     );
     closeLoading();
     if (context.mounted) {

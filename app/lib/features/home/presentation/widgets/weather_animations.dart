@@ -84,7 +84,7 @@ LinearGradient _gradientFor(String? condition) {
     case 'snow_night':
       colors = const [Color(0xFFDACFB6), Color(0xFFB9A886)];
     default:
-      colors = const [AppColors.accentTint, AppColors.paper];
+      colors = [AppColors.accentTint, AppColors.paper];
   }
   return LinearGradient(colors: colors, begin: begin, end: end);
 }

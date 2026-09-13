@@ -2,6 +2,10 @@ import asyncio
 import json
 import logging
 
+from sqlalchemy import desc, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db.models import SavedLocation
 from ..db.redis import cache_get, cache_set
 from ..models.discovery import (
     KakaoRestaurantResponse,
@@ -9,6 +13,7 @@ from ..models.discovery import (
     RestaurantItemResponse,
     TopAttractionResponse,
 )
+from ..models.location import PopularLocationResponse
 from .kakao_local import KakaoLocalService
 from .tourapi import TourApiService
 
@@ -32,7 +37,10 @@ _MAJOR_CITY_COORDS: dict[str, tuple[float, float]] = {
     "제주": (33.4996, 126.5312),
 }
 _KAKAO_RESTAURANTS_PER_CITY = 5
-_KAKAO_NEARBY_RADIUS_M = 5000
+# "내 주변"은 실제로 걸어갈 수 있는 거리를 우선한다 — 1.2km(도보 15분 안팎)부터
+# 시작해서, 그 반경에 너무 적으면(콜드스팟 등) 점점 넓혀서 빈 화면을 피한다.
+_KAKAO_NEARBY_RADII_M = [1200, 2500, 5000]
+_KAKAO_NEARBY_MIN_RESULTS = 5
 
 # "실시간 검색 순위"를 낼 만한 자체 검색 로그 집계 인프라가 아직 없어서, 전국
 # 대표 명소 10곳을 고정 순위로 두고 매일 캐시를 다시 채우는 정적 프록시로
@@ -170,7 +178,12 @@ class DiscoveryService:
 
     async def get_kakao_restaurants_nationwide(self) -> list[KakaoRestaurantResponse]:
         """카카오맵 기반 "전국" 맛집 카드 — 주요 도시 중심 좌표를 돌며 모은 풀을
-        하루 단위로 캐싱한다. 카카오 응답엔 사진이 없어 이름/카테고리/주소만 있다.
+        하루 단위로 캐싱한다.
+
+        카카오 로컬 API엔 평점/리뷰 수가 없어 "리뷰 많은 순"은 낼 수 없다 — 대신
+        카카오 자체 관련도 랭킹(`sort=accuracy`)을 쓴다. 사진도 카카오엔 없어서,
+        같은 이름으로 TourAPI에 등록된 곳이 있으면 그 사진으로 보강한다(없으면
+        프론트엔드가 아이콘 배지로 폴백).
         """
         cached = await cache_get(_KAKAO_RESTAURANTS_CACHE_KEY)
         if cached is not None:
@@ -179,19 +192,13 @@ class DiscoveryService:
         results = await asyncio.gather(
             *(
                 self._kakao_local_service.search_restaurants(
-                    latitude=lat, longitude=lng, limit=_KAKAO_RESTAURANTS_PER_CITY
+                    latitude=lat, longitude=lng, limit=_KAKAO_RESTAURANTS_PER_CITY, sort="accuracy"
                 )
                 for lat, lng in _MAJOR_CITY_COORDS.values()
             )
         )
-        restaurants = [
-            KakaoRestaurantResponse(
-                id=place["id"], name=place["name"], category=place["category"], address=place["address"]
-            )
-            for places in results
-            for place in places
-            if place.get("id")
-        ]
+        places = [place for places in results for place in places if place.get("id")]
+        restaurants = await self._to_responses(places)
         if not restaurants:
             logger.warning("Kakao nationwide restaurants build returned no results (KAKAO_REST_API_KEY missing?)")
         await cache_set(
@@ -204,9 +211,26 @@ class DiscoveryService:
     async def get_kakao_restaurants_nearby(
         self, *, latitude: float, longitude: float
     ) -> list[KakaoRestaurantResponse]:
-        """카카오맵 기반 "내 주변" 맛집(반경 5km) — 위치에 따라 매번 달라지므로 캐싱하지 않는다."""
-        places = await self._kakao_local_service.search_restaurants(
-            latitude=latitude, longitude=longitude, radius_m=_KAKAO_NEARBY_RADIUS_M, limit=15
+        """카카오맵 기반 "내 주변" 맛집 — 위치에 따라 매번 달라지므로 캐싱하지 않는다.
+
+        도보로 갈 만한 거리(1.2km)부터 찾고, 그 반경에 결과가 너무 적으면(콜드
+        스팟 등) 점점 넓혀서 빈 화면을 피한다. 거리순 정렬 자체가 "가까운
+        곳부터"라 리뷰 수 없이도 실질적인 우선순위가 된다.
+        """
+        places: list[dict] = []
+        for radius_m in _KAKAO_NEARBY_RADII_M:
+            places = await self._kakao_local_service.search_restaurants(
+                latitude=latitude, longitude=longitude, radius_m=radius_m, limit=15, sort="distance"
+            )
+            if len(places) >= _KAKAO_NEARBY_MIN_RESULTS:
+                break
+
+        return await self._to_responses([p for p in places if p.get("id")])
+
+    async def _to_responses(self, places: list[dict]) -> list[KakaoRestaurantResponse]:
+        """카카오 검색 결과에 같은 이름의 TourAPI 등록 사진이 있으면 보강해 응답으로 바꾼다."""
+        image_urls = await asyncio.gather(
+            *(self._tour_api_service.find_image_url(place["name"]) for place in places)
         )
         return [
             KakaoRestaurantResponse(
@@ -215,7 +239,37 @@ class DiscoveryService:
                 category=place["category"],
                 address=place["address"],
                 distance_m=place.get("distance_m"),
+                image_url=image_url,
+                phone=place.get("phone"),
+                place_url=place.get("place_url"),
             )
-            for place in places
-            if place.get("id")
+            for place, image_url in zip(places, image_urls, strict=True)
+        ]
+
+    async def get_popular_locations(
+        self, db: AsyncSession, *, limit: int = 10
+    ) -> list[PopularLocationResponse]:
+        """둘러보기 탭 "다른 사람들이 둘러본 골목" — 실제로 찜(저장)한 사용자 수 기준.
+
+        큐레이션 3곳으로만 채워지던 예전 방식 대신, 실제 사용자 행동(saved_locations)을
+        집계한다. 아직 아무도 안 찜한 콜드 스타트 상태면 빈 리스트를 반환하고,
+        프론트엔드가 큐레이션 목록으로 폴백한다(get_all_locations).
+        """
+        rows = await db.execute(
+            select(SavedLocation.location_id, func.count().label("count"))
+            .group_by(SavedLocation.location_id)
+            .order_by(desc("count"))
+            .limit(limit)
+        )
+        counts = rows.all()
+        if not counts:
+            return []
+
+        locations = await asyncio.gather(
+            *(self._tour_api_service.get_location_by_id(location_id) for location_id, _ in counts)
+        )
+        return [
+            PopularLocationResponse(**location.model_dump(), saved_by_count=count)
+            for (_, count), location in zip(counts, locations, strict=True)
+            if location is not None
         ]

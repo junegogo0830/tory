@@ -1,11 +1,15 @@
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../data/models/profile.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../auth/data/auth_providers.dart';
+import '../../auth/data/kakao_login_error.dart';
+import '../../notifications/data/notification_providers.dart';
 import '../data/profile_providers.dart';
 
 void _showComingSoon(BuildContext context) {
@@ -72,11 +76,12 @@ class _GuestProfile extends ConsumerWidget {
                 child: ElevatedButton.icon(
                   onPressed: () async {
                     await ref.read(authStateProvider.notifier).loginWithKakao();
-                    final loggedIn = ref.read(authStateProvider).value ?? false;
                     if (!context.mounted) return;
+                    final authState = ref.read(authStateProvider);
+                    final loggedIn = authState.value ?? false;
                     if (!loggedIn) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('카카오 로그인에 실패했어요. 다시 시도해주세요.')),
+                        SnackBar(content: Text(describeKakaoLoginError(authState.error))),
                       );
                     }
                   },
@@ -132,7 +137,7 @@ class _ProfileHeader extends StatelessWidget {
       children: [
         Expanded(child: Text('프로필', style: AppTypography.title)),
         IconButton(
-          onPressed: () => _showComingSoon(context),
+          onPressed: () => context.push('/edit-profile'),
           icon: const Icon(Icons.settings_outlined, size: 22),
         ),
       ],
@@ -158,11 +163,25 @@ class _MemberCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 78,
-                height: 78,
-                decoration: const BoxDecoration(color: AppColors.surface, shape: BoxShape.circle),
-                child: const Icon(Icons.person, color: AppColors.accentDeep, size: 36),
+              ClipOval(
+                child: SizedBox(
+                  width: 78,
+                  height: 78,
+                  child: profile.profileImageUrl != null
+                      ? AppNetworkImage(
+                          imageUrl: profile.profileImageUrl!,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) => ColoredBox(color: AppColors.surface),
+                          errorWidget: (_, _, _) => ColoredBox(
+                            color: AppColors.surface,
+                            child: const Icon(Icons.person, color: AppColors.accentDeep, size: 36),
+                          ),
+                        )
+                      : ColoredBox(
+                          color: AppColors.surface,
+                          child: const Icon(Icons.person, color: AppColors.accentDeep, size: 36),
+                        ),
+                ),
               ),
               const SizedBox(width: 17),
               Expanded(
@@ -288,7 +307,7 @@ class _SavedPlaceCard extends StatelessWidget {
             const SizedBox(height: 5),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 15, color: AppColors.inkSecondary),
+                Icon(Icons.location_on_outlined, size: 15, color: AppColors.inkSecondary),
                 const SizedBox(width: 3),
                 Expanded(
                   child: Text(place.region, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTypography.caption),
@@ -312,13 +331,18 @@ class _MenuCard extends ConsumerWidget {
       decoration: _whiteCard,
       child: Column(
         children: [
-          _MenuRow(icon: Icons.map_outlined, label: '내가 만든 코스', onTap: () => _showComingSoon(context)),
+          _MenuRow(icon: Icons.map_outlined, label: '내가 만든 코스', onTap: () => context.push('/my-courses')),
           const Divider(),
-          _MenuRow(icon: Icons.camera_alt_outlined, label: '사진으로 남긴 추억', onTap: () => _showComingSoon(context)),
+          _MenuRow(icon: Icons.camera_alt_outlined, label: '사진으로 남긴 추억', onTap: () => context.push('/my-memories')),
           const Divider(),
-          _MenuRow(icon: Icons.notifications_none, label: '알림 설정', onTap: () => _showComingSoon(context)),
+          _MenuRow(
+            icon: Icons.notifications_none,
+            label: '알림 설정',
+            onTap: () => context.push('/notifications'),
+            trailing: const _UnreadNotificationBadge(),
+          ),
           const Divider(),
-          _MenuRow(icon: Icons.info_outline, label: '옛길 소개', onTap: () => _showComingSoon(context)),
+          _MenuRow(icon: Icons.info_outline, label: '옛길 소개', onTap: () => context.push('/about')),
           const Divider(),
           _MenuRow(
             icon: Icons.logout,
@@ -332,10 +356,11 @@ class _MenuCard extends ConsumerWidget {
 }
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label, required this.onTap});
+  const _MenuRow({required this.icon, required this.label, required this.onTap, this.trailing});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -348,9 +373,29 @@ class _MenuRow extends StatelessWidget {
             Icon(icon, color: AppColors.accentDeep, size: 25),
             const SizedBox(width: 15),
             Expanded(child: Text(label, style: AppTypography.body)),
-            const Icon(Icons.chevron_right, color: AppColors.inkSecondary),
+            if (trailing != null) ...[trailing!, const SizedBox(width: 6)],
+            Icon(Icons.chevron_right, color: AppColors.inkSecondary),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 안 읽은 알림 개수 배지 — 0이면 아무것도 안 보여준다.
+class _UnreadNotificationBadge extends ConsumerWidget {
+  const _UnreadNotificationBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(unreadNotificationCountProvider).value ?? 0;
+    if (count == 0) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: const Color(0xFFE0533D), borderRadius: BorderRadius.circular(999)),
+      child: Text(
+        count > 9 ? '9+' : '$count',
+        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -373,10 +418,10 @@ class _FamilyBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 25,
               backgroundColor: AppColors.surface,
-              child: Icon(Icons.group_outlined, color: AppColors.accentDeep, size: 29),
+              child: const Icon(Icons.group_outlined, color: AppColors.accentDeep, size: 29),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -397,8 +442,8 @@ class _FamilyBanner extends StatelessWidget {
   }
 }
 
-const _whiteCard = BoxDecoration(
+BoxDecoration get _whiteCard => BoxDecoration(
   color: AppColors.surface,
-  borderRadius: BorderRadius.all(Radius.circular(19)),
-  boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 7))],
+  borderRadius: const BorderRadius.all(Radius.circular(19)),
+  boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 7))],
 );

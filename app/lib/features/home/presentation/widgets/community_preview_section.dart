@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -60,7 +60,7 @@ class CommunityPreviewSection extends ConsumerWidget {
                           height: 96,
                           child: post.photoUrl == null
                               ? const PhotoFallback()
-                              : CachedNetworkImage(
+                              : AppNetworkImage(
                                   imageUrl: post.photoUrl!,
                                   fit: BoxFit.cover,
                                   placeholder: (_, _) => const PhotoFallback(),
@@ -105,7 +105,7 @@ class _JoinPromptCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
+          Icon(Icons.chevron_right, color: AppColors.inkTertiary),
         ],
       ),
     );

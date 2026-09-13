@@ -47,7 +47,7 @@ class _WeatherTopBannerState extends ConsumerState<WeatherTopBanner> {
       if (!await Geolocator.isLocationServiceEnabled()) return;
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
       );
       if (mounted) setState(() => _position = position);
     } catch (_) {
@@ -162,7 +162,7 @@ class _CompactSearchField extends StatelessWidget {
             disabledBorder: InputBorder.none,
             errorBorder: InputBorder.none,
             focusedErrorBorder: InputBorder.none,
-            prefixIcon: const Icon(Icons.search, color: AppColors.inkSecondary, size: 20),
+            prefixIcon: Icon(Icons.search, color: AppColors.inkSecondary, size: 20),
             prefixIconConstraints: const BoxConstraints(minWidth: 36),
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),

@@ -23,10 +23,22 @@ class RestaurantCategoryResponse(BaseModel):
 
 
 class KakaoRestaurantResponse(BaseModel):
-    """카카오맵 기반 맛집 — 카카오 로컬 API엔 사진 필드가 없어 image_url이 없다."""
+    """카카오맵 기반 맛집.
+
+    카카오 로컬 API 응답 자체엔 사진·평점·리뷰 수 필드가 없다(실제 호출로 확인 —
+    id/place_name/category_name/address_name/road_address_name/phone/place_url/
+    x/y/distance만 온다). 그래서:
+    - image_url은 같은 이름으로 TourAPI에 등록된 관광지/음식점이 있을 때만
+      보강되는 값이고(없으면 None — 프론트엔드는 아이콘 배지로 폴백한다),
+    - "인기순" 대신 카카오 자체 관련도(sort=accuracy)를 쓰고,
+    - 실제 평점·리뷰는 place_url로 카카오맵 원본 페이지에 링크해 보여준다.
+    """
 
     id: str
     name: str
     category: str
     address: str
     distance_m: int | None = None
+    image_url: str | None = None
+    phone: str | None = None
+    place_url: str | None = None

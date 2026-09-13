@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/image_proxy.dart';
 import '../../../../data/models/tour_course.dart';
 import '../../../../data/repositories/repository_providers.dart';
 import '../../../../shared/widgets/app_card.dart';
@@ -46,7 +45,8 @@ class _NearbyCourseCardState extends ConsumerState<NearbyCourseCard> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         if (mounted) setState(() => _state = _LoadState.unavailable);
         return;
       }
@@ -56,12 +56,11 @@ class _NearbyCourseCardState extends ConsumerState<NearbyCourseCard> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
       );
-      final course = await ref.read(courseRepositoryProvider).getCourseByCoords(
-            lat: position.latitude,
-            lng: position.longitude,
-          );
+      final course = await ref
+          .read(courseRepositoryProvider)
+          .getCourseByCoords(lat: position.latitude, lng: position.longitude);
       if (!mounted) return;
       setState(() {
         _course = course;
@@ -91,14 +90,18 @@ class _NearbyCourseLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AppCard(
+    return AppCard(
       child: Row(
         children: [
-          SizedBox(
-            width: 16, height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.accent,
+            ),
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Text('현재 계신 곳 근처 코스를 짜고 있어요…', style: AppTypography.subhead),
         ],
       ),
@@ -119,16 +122,29 @@ class _NearbyCourseContent extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.near_me_outlined, color: AppColors.accentDeep, size: 18),
+            const Icon(
+              Icons.near_me_outlined,
+              color: AppColors.accentDeep,
+              size: 18,
+            ),
             const SizedBox(width: 6),
-            Expanded(child: Text('현재 계신 곳을 기준으로 코스를 짜봤어요', style: AppTypography.headline)),
+            Expanded(
+              child: Text(
+                '현재 계신 곳을 기준으로 코스를 짜봤어요',
+                style: AppTypography.headline,
+              ),
+            ),
             // 자동으로는 다시 안 부르고, 누르면만 새로고침한다.
             InkWell(
               onTap: onRefresh,
               borderRadius: BorderRadius.circular(99),
               child: const Padding(
                 padding: EdgeInsets.all(4),
-                child: Icon(Icons.my_location, size: 18, color: AppColors.accentDeep),
+                child: Icon(
+                  Icons.my_location,
+                  size: 18,
+                  color: AppColors.accentDeep,
+                ),
               ),
             ),
           ],
@@ -145,11 +161,13 @@ class _NearbyCourseContent extends StatelessWidget {
                   width: 72,
                   height: 72,
                   child: course.imageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: resolveImageUrl(course.imageUrl!),
+                      ? AppNetworkImage(
+                          imageUrl: course.imageUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (_, _) => const PhotoFallback(icon: Icons.route_outlined),
-                          errorWidget: (_, _, _) => const PhotoFallback(icon: Icons.route_outlined),
+                          placeholder: (_, _) =>
+                              const PhotoFallback(icon: Icons.route_outlined),
+                          errorWidget: (_, _, _) =>
+                              const PhotoFallback(icon: Icons.route_outlined),
                         )
                       : const PhotoFallback(icon: Icons.route_outlined),
                 ),
@@ -170,12 +188,14 @@ class _NearbyCourseContent extends StatelessWidget {
                       course.description,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary),
+                      style: AppTypography.footnote.copyWith(
+                        color: AppColors.inkSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
+              Icon(Icons.chevron_right, color: AppColors.inkTertiary),
             ],
           ),
         ),

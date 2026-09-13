@@ -46,7 +46,7 @@ class _RegionSelectContentState extends State<_RegionSelectContent> {
                   if (province != null)
                     IconButton(
                       onPressed: () => setState(() => _selectedProvince = null),
-                      icon: const Icon(Icons.arrow_back, color: AppColors.ink),
+                      icon: Icon(Icons.arrow_back, color: AppColors.ink),
                     ),
                   Expanded(
                     child: Text(
@@ -59,7 +59,7 @@ class _RegionSelectContentState extends State<_RegionSelectContent> {
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.hairline),
+            Divider(height: 1, color: AppColors.hairline),
             Expanded(
               child: province == null
                   ? ListView(
@@ -67,7 +67,7 @@ class _RegionSelectContentState extends State<_RegionSelectContent> {
                         for (final entry in koreaRegions.keys)
                           ListTile(
                             title: Text(entry, style: AppTypography.body),
-                            trailing: const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
+                            trailing: Icon(Icons.chevron_right, color: AppColors.inkTertiary),
                             onTap: () => setState(() => _selectedProvince = entry),
                           ),
                       ],

@@ -6,6 +6,7 @@ import 'course_repository.dart';
 import 'discovery_repository.dart';
 import 'highlight_repository.dart';
 import 'location_repository.dart';
+import 'notification_repository.dart';
 import 'profile_repository.dart';
 import 'weather_repository.dart';
 
@@ -41,4 +42,8 @@ final highlightRepositoryProvider = Provider<HighlightRepository>((ref) {
 
 final discoveryRepositoryProvider = Provider<DiscoveryRepository>((ref) {
   return DiscoveryRepository(ref.watch(apiClientProvider));
+});
+
+final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
+  return NotificationRepository(ref.watch(apiClientProvider));
 });

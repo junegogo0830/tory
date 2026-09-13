@@ -29,7 +29,7 @@ class _WebFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(color: AppColors.ink),
+      decoration: BoxDecoration(color: AppColors.ink),
       child: Center(
         child: TextButton.icon(
           onPressed: () {
@@ -76,9 +76,9 @@ class _NativeInlineRoadviewState extends State<_NativeInlineRoadview> {
       children: [
         WebViewWidget(controller: _controller),
         if (_isLoading)
-          const ColoredBox(
+          ColoredBox(
             color: AppColors.ink,
-            child: Center(child: CircularProgressIndicator(color: AppColors.accentTint)),
+            child: const Center(child: CircularProgressIndicator(color: AppColors.accentTint)),
           ),
       ],
     );

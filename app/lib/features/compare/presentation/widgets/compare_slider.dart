@@ -1,9 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/image_proxy.dart';
 import '../../../../shared/widgets/inline_roadview.dart';
 import '../../../../shared/widgets/photo_fallback.dart';
 
@@ -21,7 +20,10 @@ class CompareSlider extends StatefulWidget {
     this.height = 360,
     this.useLiveRoadview = false,
     this.locationId,
-  }) : assert(!useLiveRoadview || locationId != null, 'useLiveRoadview면 locationId가 필요해요');
+  }) : assert(
+         !useLiveRoadview || locationId != null,
+         'useLiveRoadview면 locationId가 필요해요',
+       );
 
   final int pastYear;
   final int currentYear;
@@ -80,7 +82,9 @@ class _CompareSliderState extends State<CompareSlider> {
                     ),
                     icon: Icons.photo_camera_outlined,
                     networkImageUrl: widget.currentImageUrl,
-                    liveContent: widget.useLiveRoadview ? InlineRoadview(locationId: widget.locationId!) : null,
+                    liveContent: widget.useLiveRoadview
+                        ? InlineRoadview(locationId: widget.locationId!)
+                        : null,
                   ),
                   // 과거(앞 레이어) — seam 위치만큼만 클립.
                   ClipRect(
@@ -114,7 +118,11 @@ class _CompareSliderState extends State<CompareSlider> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Icon(Icons.drag_indicator, size: 16, color: Colors.white),
+                      child: const Icon(
+                        Icons.drag_indicator,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -148,10 +156,11 @@ class _ImageLayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const fallback = PhotoFallback();
-    final image = liveContent ??
+    final image =
+        liveContent ??
         (networkImageUrl != null
-            ? CachedNetworkImage(
-                imageUrl: resolveImageUrl(networkImageUrl!),
+            ? AppNetworkImage(
+                imageUrl: networkImageUrl!,
                 fit: BoxFit.cover,
                 placeholder: (_, _) => fallback,
                 errorWidget: (_, _, _) => fallback,
@@ -162,17 +171,34 @@ class _ImageLayer extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Container(decoration: BoxDecoration(gradient: background)),
-        ColorFiltered(
-          colorFilter: sepia
-              ? const ColorFilter.matrix([
-                  0.55, 0.43, 0.12, 0, 0,
-                  0.45, 0.38, 0.10, 0, 0,
-                  0.30, 0.25, 0.08, 0, 0,
-                  0, 0, 0, 1, 0,
-                ])
-              : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
-          child: image,
-        ),
+        if (sepia)
+          ColorFiltered(
+            colorFilter: const ColorFilter.matrix([
+              0.55,
+              0.43,
+              0.12,
+              0,
+              0,
+              0.45,
+              0.38,
+              0.10,
+              0,
+              0,
+              0.30,
+              0.25,
+              0.08,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+            ]),
+            child: image,
+          )
+        else
+          image,
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -192,7 +218,10 @@ class _ImageLayer extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: AppTypography.footnote.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                style: AppTypography.footnote.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -211,5 +240,6 @@ class _LeftClipper extends CustomClipper<Rect> {
   Rect getClip(Size size) => Rect.fromLTWH(0, 0, seamX, size.height);
 
   @override
-  bool shouldReclip(covariant _LeftClipper oldClipper) => oldClipper.seamX != seamX;
+  bool shouldReclip(covariant _LeftClipper oldClipper) =>
+      oldClipper.seamX != seamX;
 }

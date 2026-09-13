@@ -4,15 +4,18 @@ import 'app_radius.dart';
 import 'app_typography.dart';
 
 abstract final class AppTheme {
-  static ThemeData get light {
+  static ThemeData get light => _build(Brightness.light);
+  static ThemeData get dark => _build(Brightness.dark);
+
+  static ThemeData _build(Brightness brightness) {
     final base = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
+      brightness: brightness,
       fontFamily: 'Pretendard',
       scaffoldBackgroundColor: AppColors.paper,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.accent,
-        brightness: Brightness.light,
+        brightness: brightness,
         primary: AppColors.ink,
         secondary: AppColors.accent,
         surface: AppColors.surface,
@@ -29,7 +32,7 @@ abstract final class AppTheme {
         bodySmall: AppTypography.footnote,
         labelSmall: AppTypography.caption,
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.paper,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -78,7 +81,7 @@ abstract final class AppTheme {
           ),
         ),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.accent,
         unselectedItemColor: AppColors.inkTertiary,
@@ -87,7 +90,7 @@ abstract final class AppTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
-      dividerTheme: const DividerThemeData(
+      dividerTheme: DividerThemeData(
         color: AppColors.hairline,
         thickness: 1,
         space: 1,

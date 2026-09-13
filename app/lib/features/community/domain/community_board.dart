@@ -55,5 +55,7 @@ const List<CommunityBoard> communityBoards = [
   ),
 ];
 
-CommunityBoard communityBoardById(String id) =>
-    communityBoards.firstWhere((board) => board.id == id, orElse: () => communityBoards.first);
+CommunityBoard communityBoardById(String id) => communityBoards.firstWhere(
+  (board) => board.id == id,
+  orElse: () => communityBoards.first,
+);

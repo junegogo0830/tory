@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -82,7 +83,7 @@ class ArchiveService:
         if not settings.anthropic_api_key:
             return None
         if self._client is None:
-            self._client = Anthropic(api_key=settings.anthropic_api_key)
+            self._client = Anthropic(api_key=settings.anthropic_api_key, timeout=15, max_retries=0)
         return self._client
 
     async def get_region_story(self, location_id: str) -> RegionStoryResponse | None:
@@ -98,7 +99,7 @@ class ArchiveService:
             return None
 
         query = simplify_place_name(location.region, location.name)
-        cache_key = f"regionstory:{query}"
+        cache_key = f"regionstory:v2:{query}"
 
         cached = await cache_get(cache_key)
         if cached is not None:
@@ -106,7 +107,7 @@ class ArchiveService:
 
         story = await self._generate_story(query)
         await cache_set(
-            cache_key, story.model_dump_json() if story else "null", ex=_STORY_CACHE_TTL_SECONDS
+            cache_key, story.model_dump_json() if story else "null", ex=_STORY_CACHE_TTL_SECONDS if story else 60
         )
         return story
 
@@ -116,7 +117,7 @@ class ArchiveService:
             return None
 
         try:
-            response = client.messages.create(
+            response = await asyncio.to_thread(client.messages.create,
                 model=_STORY_MODEL,
                 max_tokens=3000,
                 system=_STORY_SYSTEM_PROMPT,
@@ -163,10 +164,18 @@ class ArchiveService:
         if not items:
             return self._mock_for(location_id)
 
-        return sorted(items, key=lambda item: item.year)
+        return self._sorted(items)
+
+    @staticmethod
+    def _sort_key(item: NewsItemResponse) -> str:
+        # 연도만 아는 큐레이션 목 데이터는 그 해 1월 1일로 취급해 정렬한다.
+        return item.published_at or f"{item.year}-01-01"
+
+    def _sorted(self, items: list[NewsItemResponse]) -> list[NewsItemResponse]:
+        return sorted(items, key=self._sort_key)
 
     def _mock_for(self, location_id: str) -> list[NewsItemResponse]:
-        return sorted(_MOCK_NEWS.get(location_id, []), key=lambda item: item.year)
+        return self._sorted(_MOCK_NEWS.get(location_id, []))
 
     async def _search_news(self, query: str) -> list[NewsItemResponse]:
         cache_key = f"news:{query}"
@@ -217,6 +226,8 @@ class ArchiveService:
                     title=strip_html(raw.get("title", "")),
                     source=source,
                     summary=strip_html(raw.get("description", "")),
+                    published_at=pub_date.date().isoformat(),
+                    url=link or None,
                 )
             )
 

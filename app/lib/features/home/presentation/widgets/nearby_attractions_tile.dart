@@ -47,7 +47,7 @@ class NearbyAttractionsTile extends StatelessWidget {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
       );
       closeLoading();
       if (context.mounted) {
@@ -77,7 +77,7 @@ class NearbyAttractionsTile extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: AppColors.inkTertiary),
+          Icon(Icons.chevron_right, color: AppColors.inkTertiary),
         ],
       ),
     );

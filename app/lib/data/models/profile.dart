@@ -24,6 +24,7 @@ class Profile {
   const Profile({
     required this.displayName,
     required this.tagline,
+    this.profileImageUrl,
     required this.savedLocationsCount,
     required this.completedCoursesCount,
     required this.memoryPhotoCount,
@@ -33,6 +34,10 @@ class Profile {
 
   final String displayName;
   final String tagline;
+  // 카카오 로그인 사진이거나 프로필 수정에서 직접 올린 사진. 절대 URL(카카오 CDN)일
+  // 수도, 우리 서버 상대경로("/uploads/profile/...")일 수도 있어 AppNetworkImage의
+  // resolveImageUrl이 알아서 처리하게 그대로 둔다(여기서 apiBaseUrl을 붙이지 않는다).
+  final String? profileImageUrl;
   final int savedLocationsCount;
   final int completedCoursesCount;
   final int memoryPhotoCount;
@@ -45,6 +50,7 @@ class Profile {
     return Profile(
       displayName: json['display_name'] as String,
       tagline: json['tagline'] as String,
+      profileImageUrl: json['profile_image_url'] as String?,
       savedLocationsCount: json['saved_locations_count'] as int,
       completedCoursesCount: json['completed_courses_count'] as int,
       memoryPhotoCount: json['memory_photo_count'] as int,

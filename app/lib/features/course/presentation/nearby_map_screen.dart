@@ -48,10 +48,14 @@ class _NativeMapState extends State<_NativeMap> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(AppColors.paper)
       ..setNavigationDelegate(
-        NavigationDelegate(onPageFinished: (_) => setState(() => _isLoading = false)),
+        NavigationDelegate(
+          onPageFinished: (_) => setState(() => _isLoading = false),
+        ),
       )
       ..loadRequest(
-        Uri.parse('${AppConstants.apiBaseUrl}/map/nearby?lat=${widget.lat}&lng=${widget.lng}'),
+        Uri.parse(
+          '${AppConstants.apiBaseUrl}/map/nearby?lat=${widget.lat}&lng=${widget.lng}',
+        ),
       );
   }
 
@@ -62,9 +66,11 @@ class _NativeMapState extends State<_NativeMap> {
       children: [
         WebViewWidget(controller: _controller),
         if (_isLoading)
-          const ColoredBox(
+          ColoredBox(
             color: AppColors.paper,
-            child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+            child: const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
           ),
       ],
     );

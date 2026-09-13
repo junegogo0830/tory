@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +6,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_shadows.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/image_proxy.dart';
 import '../../../../data/models/restaurant_category.dart';
 import '../../../../shared/widgets/photo_fallback.dart';
 import '../../data/home_providers.dart';
@@ -152,8 +151,8 @@ class _CategoryCard extends StatelessWidget {
             width: double.infinity,
             child: hero.imageUrl == null
                 ? const PhotoFallback()
-                : CachedNetworkImage(
-                    imageUrl: resolveImageUrl(hero.imageUrl!),
+                : AppNetworkImage(
+                    imageUrl: hero.imageUrl!,
                     fit: BoxFit.cover,
                     placeholder: (_, _) => const PhotoFallback(),
                     errorWidget: (_, _, _) => const PhotoFallback(),
@@ -209,7 +208,7 @@ class _CategoryCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text('자세히보기', style: AppTypography.caption.copyWith(color: AppColors.inkSecondary)),
-                      const Icon(Icons.chevron_right, size: 14, color: AppColors.inkSecondary),
+                      Icon(Icons.chevron_right, size: 14, color: AppColors.inkSecondary),
                     ],
                   ),
                 ),
@@ -242,8 +241,8 @@ class _ThumbCard extends StatelessWidget {
               width: double.infinity,
               child: item.imageUrl == null
                   ? const PhotoFallback()
-                  : CachedNetworkImage(
-                      imageUrl: resolveImageUrl(item.imageUrl!),
+                  : AppNetworkImage(
+                      imageUrl: item.imageUrl!,
                       fit: BoxFit.cover,
                       placeholder: (_, _) => const PhotoFallback(),
                       errorWidget: (_, _, _) => const PhotoFallback(),

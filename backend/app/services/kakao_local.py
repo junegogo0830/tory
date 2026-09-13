@@ -114,14 +114,23 @@ class KakaoLocalService:
             return None
 
     async def search_restaurants(
-        self, *, latitude: float, longitude: float, radius_m: int = 5000, limit: int = 15
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        radius_m: int = 5000,
+        limit: int = 15,
+        sort: str = "distance",
     ) -> list[dict]:
-        """좌표 반경 내 실제 음식점(카테고리 코드 FD6)을 거리순으로 반환한다.
+        """좌표 반경 내 실제 음식점(카테고리 코드 FD6)을 반환한다.
 
-        카카오 로컬 API 응답엔 사진/평점 필드가 아예 없다(실제 호출로 확인) —
-        그래서 여기서 돌려주는 dict에도 image_url을 넣지 않는다. 카카오는
-        TourAPI보다 등록 밀도가 훨씬 높아서(같은 반경 기준 실측 최대 10배 이상)
-        "카카오맵 기반" 맛집 카드의 데이터 소스로 쓴다.
+        카카오 로컬 API 응답엔 평점/리뷰 수/사진 필드가 아예 없다(실제 호출로
+        확인 — id/place_name/category_name/address_name/road_address_name/
+        phone/place_url/x/y/distance뿐). "인기순" 정렬은 이 API로는 낼 수 없어,
+        카카오 자체 관련도 랭킹(`sort="accuracy"`)이나 거리순(`sort="distance"`,
+        기본값 — "내 주변"처럼 실제로 가까운 곳이 우선이어야 할 때)을 호출부가
+        고른다. 카카오는 TourAPI보다 등록 밀도가 훨씬 높아서(같은 반경 기준
+        실측 최대 10배 이상) "카카오맵 기반" 맛집 카드의 데이터 소스로 쓴다.
         """
         if not settings.kakao_rest_api_key:
             return []
@@ -137,7 +146,7 @@ class KakaoLocalService:
                         "y": latitude,
                         "radius": radius_m,
                         "size": min(limit, 15),
-                        "sort": "distance",
+                        "sort": sort,
                     },
                 )
                 response.raise_for_status()
@@ -161,6 +170,8 @@ class KakaoLocalService:
                     "distance_m": int(doc["distance"]) if doc.get("distance") else None,
                     "latitude": lat,
                     "longitude": lng,
+                    "phone": doc.get("phone") or None,
+                    "place_url": doc.get("place_url") or None,
                 }
             )
         return results

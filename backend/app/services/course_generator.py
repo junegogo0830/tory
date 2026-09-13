@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -73,7 +74,7 @@ class CourseGeneratorService:
         if not settings.anthropic_api_key:
             return None
         if self._client is None:
-            self._client = Anthropic(api_key=settings.anthropic_api_key)
+            self._client = Anthropic(api_key=settings.anthropic_api_key, timeout=12, max_retries=0)
         return self._client
 
     async def generate_course(self, location: LocationResponse, season: str) -> CourseResponse | None:
@@ -83,13 +84,17 @@ class CourseGeneratorService:
         cache_key = f"gencourse:{location.id}:{season}"
         cached = await cache_get(cache_key)
         if cached is not None:
-            return CourseResponse.model_validate(json.loads(cached)) if cached != "null" else None
+            course = CourseResponse.model_validate_json(cached) if cached != "null" else None
+            if course:
+                await cache_set(f"course-detail:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+            return course
 
         course = await self._generate(location, season)
 
-        await cache_set(
-            cache_key, course.model_dump_json() if course else "null", ex=_CACHE_TTL_SECONDS
-        )
+        await cache_set(cache_key, course.model_dump_json() if course else "null",
+                        ex=_CACHE_TTL_SECONDS if course else 60)
+        if course:
+            await cache_set(f"course-detail:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
         return course
 
     async def _generate(self, location: LocationResponse, season: str) -> CourseResponse | None:
@@ -112,7 +117,7 @@ class CourseGeneratorService:
         )
 
         try:
-            response = client.messages.create(
+            response = await asyncio.to_thread(client.messages.create,
                 model=_MODEL,
                 max_tokens=1024,
                 system=_SYSTEM_PROMPT,
@@ -137,8 +142,10 @@ class CourseGeneratorService:
             )
             return None
 
+        if not isinstance(data, dict) or not isinstance(data.get("stops"), list):
+            return None
         candidates_by_name = {c["title"]: c for c in candidates}
-        stop_names = [s for s in data.get("stops", []) if s in candidates_by_name]
+        stop_names = list(dict.fromkeys(s for s in data["stops"] if isinstance(s, str) and s in candidates_by_name))[:4]
         if len(stop_names) < 2:
             logger.warning("Claude course had too few real stops for location_id=%s", location.id)
             return None

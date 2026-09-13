@@ -9,7 +9,13 @@ import '../constants/app_constants.dart';
 /// 이미 우리 백엔드가 서빙하는 이미지(커뮤니티 업로드 사진 등, apiBaseUrl로 시작)는
 /// 같은 CORSMiddleware를 타서 이미 정상 동작하므로 그대로 둔다.
 String resolveImageUrl(String url) {
+  url = url.trim();
+  if (url.startsWith('/')) return '${AppConstants.apiBaseUrl}$url';
   if (url.startsWith(AppConstants.apiBaseUrl)) return url;
   if (!url.startsWith('http://') && !url.startsWith('https://')) return url;
+  final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+  if (host != 'visitkorea.or.kr' && !host.endsWith('.visitkorea.or.kr')) {
+    return url;
+  }
   return '${AppConstants.apiBaseUrl}/api/image/proxy?url=${Uri.encodeComponent(url)}';
 }

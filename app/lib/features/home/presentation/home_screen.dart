@@ -43,7 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // 자동으로 다음 장소로 넘어간다. 검색 중일 땐 건드리지 않는다(자동완성 위로
     // 화면이 바뀌면 산만하다).
     _carouselTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted || _queryController.text.trim().isNotEmpty) return;
+      if (!mounted || !TickerMode.valuesOf(context).enabled || !(ModalRoute.of(context)?.isCurrent ?? true) || _queryController.text.trim().isNotEmpty) return;
       setState(() => _carouselIndex++);
     });
   }
@@ -108,7 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     try {
       final location = await ref.read(locationRepositoryProvider).resolveFromQuery(query);
-      if (mounted) context.push('/compare/${location.id}');
+      if (mounted) _selectSuggestion(location);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -191,11 +191,11 @@ class _HomeContent extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 18),
-        const HighlightCarousel(),
+        const HighlightCarousel(key: ValueKey('home-highlights')),
         const SizedBox(height: 22),
         const QuickActionGrid(),
         const SizedBox(height: 22),
-        const RestaurantCategoriesCarousel(),
+        const RestaurantCategoriesCarousel(key: ValueKey('home-restaurants')),
         const SizedBox(height: 22),
         const NearbyAttractionsTile(),
         const SizedBox(height: 12),
@@ -290,7 +290,7 @@ class _SearchSuggestions extends StatelessWidget {
                   shrinkWrap: true,
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   itemCount: suggestions.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.hairline),
+                  separatorBuilder: (_, _) => Divider(height: 1, color: AppColors.hairline),
                   itemBuilder: (context, index) {
                     final location = suggestions[index];
                     return InkWell(
@@ -299,7 +299,7 @@ class _SearchSuggestions extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                         child: Row(
                           children: [
-                            const Icon(Icons.location_on_outlined, size: 18, color: AppColors.inkTertiary),
+                            Icon(Icons.location_on_outlined, size: 18, color: AppColors.inkTertiary),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
@@ -393,8 +393,8 @@ class _NewsPanel extends ConsumerWidget {
           newsAsync.when(
             data: (items) {
               if (items.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text('아직 모아둔 뉴스가 없어요', style: AppTypography.subhead),
                 );
               }
@@ -410,8 +410,8 @@ class _NewsPanel extends ConsumerWidget {
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
             ),
-            error: (_, _) => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
+            error: (_, _) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Text('뉴스를 불러오지 못했어요', style: AppTypography.subhead),
             ),
           ),

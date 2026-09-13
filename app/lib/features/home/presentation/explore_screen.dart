@@ -1,10 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/image_proxy.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -28,7 +27,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final locationsAsync = ref.watch(allLocationsProvider);
+    final locationsAsync = ref.watch(exploreLocationsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -80,9 +79,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     else ...[
                       Row(
                         children: [
-                          const Icon(Icons.star_outline, color: AppColors.accentDeep, size: 27),
+                          const Icon(Icons.groups_outlined, color: AppColors.accentDeep, size: 27),
                           const SizedBox(width: 8),
-                          Text('이번 주 추천 골목', style: AppTypography.title),
+                          Text('다른 사람들이 둘러본 골목', style: AppTypography.title),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -144,8 +143,8 @@ class _PlaceCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               location.imageUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: resolveImageUrl(location.imageUrl!),
+                  ? AppNetworkImage(
+                      imageUrl: location.imageUrl!,
                       fit: BoxFit.cover,
                       errorWidget: (_, _, _) => const PhotoFallback(),
                       placeholder: (_, _) => const PhotoFallback(),
@@ -227,6 +226,16 @@ class _PlaceDetail extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(location.region, style: AppTypography.subhead.copyWith(color: AppColors.accentDeep)),
+          if (location.savedByCount != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.bookmark, size: 14, color: AppColors.inkTertiary),
+                const SizedBox(width: 4),
+                Text('${location.savedByCount}명이 찜했어요', style: AppTypography.caption),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Text(location.description, style: AppTypography.subhead.copyWith(height: 1.55)),
           const SizedBox(height: 16),

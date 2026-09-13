@@ -62,3 +62,17 @@ final kakaoRestaurantsNearbyProvider =
   final repo = ref.watch(discoveryRepositoryProvider);
   return repo.getKakaoRestaurantsNearby(lat: coords.lat, lng: coords.lng);
 });
+
+/// 둘러보기 탭 "다른 사람들이 둘러본 골목" — 아직 아무도 안 찜했으면 빈 리스트.
+final popularLocationsProvider = FutureProvider<List<HometownLocation>>((ref) {
+  final repo = ref.watch(discoveryRepositoryProvider);
+  return repo.getPopularLocations();
+});
+
+/// 둘러보기 탭이 실제로 그리는 목록 — 다른 사람들이 찜한 골목을 우선 보여주고,
+/// 아직 아무도 안 찜한 콜드 스타트 상태(찜 데이터 0건)면 큐레이션 3곳으로 폴백한다.
+final exploreLocationsProvider = FutureProvider<List<HometownLocation>>((ref) async {
+  final popular = await ref.watch(popularLocationsProvider.future);
+  if (popular.isNotEmpty) return popular;
+  return ref.watch(allLocationsProvider.future);
+});

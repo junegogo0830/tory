@@ -1,15 +1,25 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...db.postgres import get_db_session
 from ...models.discovery import (
     KakaoRestaurantResponse,
     RestaurantCategoryResponse,
     RestaurantItemResponse,
     TopAttractionResponse,
 )
+from ...models.location import PopularLocationResponse
 from ...services.discovery import DiscoveryService
 
 router = APIRouter(prefix="/api/discovery", tags=["discovery"])
 _discovery_service = DiscoveryService()
+
+
+@router.get("/popular-locations", response_model=list[PopularLocationResponse])
+async def get_popular_locations(
+    limit: int = Query(10, ge=1, le=30), db: AsyncSession = Depends(get_db_session)
+) -> list[PopularLocationResponse]:
+    return await _discovery_service.get_popular_locations(db, limit=limit)
 
 
 @router.get("/top-attractions", response_model=list[TopAttractionResponse])

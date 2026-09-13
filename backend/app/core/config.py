@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     community_upload_dir: str = str(_REPO_ROOT / "backend" / "uploads" / "community")
     community_upload_max_bytes: int = 8 * 1024 * 1024
 
+    # 프로필 사진 업로드 — 같은 "/uploads" StaticFiles 마운트 아래 별도 하위 폴더로
+    # 서빙된다(main.py가 community_upload_dir의 부모를 "/uploads"에 마운트하므로
+    # 형제 폴더인 이 경로도 자동으로 "/uploads/profile/<file>"로 서빙된다).
+    profile_upload_dir: str = str(_REPO_ROOT / "backend" / "uploads" / "profile")
+    profile_upload_max_bytes: int = 5 * 1024 * 1024
+
     # 개발 편의를 위한 기본값이지 실제 값이 아니다. 배포 전 반드시 .env에서
     # `openssl rand -hex 32`로 생성한 값으로 덮어써야 한다.
     jwt_secret_key: str = "dev-only-insecure-secret-change-me"

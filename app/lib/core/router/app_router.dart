@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/archive/presentation/archive_screen.dart';
+import '../../features/community/presentation/blocked_users_screen.dart';
 import '../../features/community/presentation/community_board_screen.dart';
 import '../../features/community/presentation/community_screen.dart';
+import '../../features/community/presentation/neighbors_screen.dart';
+import '../../features/community/presentation/user_posts_screen.dart';
 import '../../features/compare/presentation/compare_screen.dart';
 import '../../features/compare/presentation/roadview_screen.dart';
 import '../../features/course/presentation/course_detail_screen.dart';
@@ -12,8 +15,14 @@ import '../../features/home/presentation/category_restaurant_list_screen.dart';
 import '../../features/home/presentation/explore_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/home/presentation/kakao_restaurant_list_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/profile/presentation/about_screen.dart';
+import '../../features/profile/presentation/edit_profile_screen.dart';
+import '../../features/profile/presentation/my_courses_screen.dart';
+import '../../features/profile/presentation/my_memories_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import 'app_shell.dart';
+import '../../features/community/presentation/community_post_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -21,21 +30,46 @@ final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
   routes: [
+    GoRoute(
+      path: '/post/:postId',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => CommunityPostScreen(
+        postId: int.tryParse(state.pathParameters['postId']!) ?? -1,
+      ),
+    ),
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
+      builder: (context, state, navigationShell) =>
+          AppShell(navigationShell: navigationShell),
       branches: [
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
-        ]),
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/community', builder: (context, state) => const CommunityScreen()),
-        ]),
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/course', builder: (context, state) => const CourseListScreen()),
-        ]),
-        StatefulShellBranch(routes: [
-          GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
-        ]),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/community',
+              builder: (context, state) => const CommunityScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/course',
+              builder: (context, state) => const CourseListScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/profile',
+              builder: (context, state) => const ProfileScreen(),
+            ),
+          ],
+        ),
       ],
     ),
     GoRoute(
@@ -46,9 +80,8 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/compare/:locationId',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => CompareScreen(
-        locationId: state.pathParameters['locationId']!,
-      ),
+      builder: (context, state) =>
+          CompareScreen(locationId: state.pathParameters['locationId']!),
     ),
     GoRoute(
       path: '/roadview/:locationId',
@@ -61,16 +94,14 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/archive/:locationId',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => ArchiveScreen(
-        locationId: state.pathParameters['locationId']!,
-      ),
+      builder: (context, state) =>
+          ArchiveScreen(locationId: state.pathParameters['locationId']!),
     ),
     GoRoute(
       path: '/course/:courseId',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => CourseDetailScreen(
-        courseId: state.pathParameters['courseId']!,
-      ),
+      builder: (context, state) =>
+          CourseDetailScreen(courseId: state.pathParameters['courseId']!),
     ),
     GoRoute(
       path: '/community/:region/:boardId',
@@ -111,6 +142,51 @@ final GoRouter appRouter = GoRouter(
         lat: double.parse(state.uri.queryParameters['lat']!),
         lng: double.parse(state.uri.queryParameters['lng']!),
       ),
+    ),
+    GoRoute(
+      path: '/notifications',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const NotificationsScreen(),
+    ),
+    GoRoute(
+      path: '/blocked-users',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const BlockedUsersScreen(),
+    ),
+    GoRoute(
+      path: '/neighbors/:region',
+      parentNavigatorKey: _rootNavigatorKey,
+      // go_router가 이미 디코딩해서 준다 — 커뮤니티 라우트와 같은 이유로 다시 디코딩하지 않는다.
+      builder: (context, state) => NeighborsScreen(region: state.pathParameters['region']!),
+    ),
+    GoRoute(
+      path: '/neighbors/:region/:authorId',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => UserPostsScreen(
+        region: state.pathParameters['region']!,
+        authorId: int.parse(state.pathParameters['authorId']!),
+        authorNickname: state.uri.queryParameters['nickname'] ?? '이웃',
+      ),
+    ),
+    GoRoute(
+      path: '/my-memories',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const MyMemoriesScreen(),
+    ),
+    GoRoute(
+      path: '/my-courses',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const MyCoursesScreen(),
+    ),
+    GoRoute(
+      path: '/about',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const AboutScreen(),
+    ),
+    GoRoute(
+      path: '/edit-profile',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const EditProfileScreen(),
     ),
   ],
 );

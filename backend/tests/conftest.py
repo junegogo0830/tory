@@ -7,10 +7,14 @@ from app.services.tourapi import TourApiService
 
 
 @pytest.fixture(autouse=True)
-def _clear_local_cache() -> None:
+def _clear_local_cache(monkeypatch) -> None:
     """cache_get/cache_set의 프로세스 내 폴백 캐시는 모듈 전역이라, 테스트마다
     비워두지 않으면 한 테스트가 심어둔 값을 다른 테스트가 몰래 재사용하게 된다."""
     redis_module._local_cache.clear()
+    # Never read or poison the running application's Redis during tests.
+    def unavailable():
+        raise ConnectionError('Use per-test in-memory cache')
+    monkeypatch.setattr(redis_module, 'get_redis', unavailable)
 
 
 @pytest.fixture(autouse=True)

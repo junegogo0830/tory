@@ -104,7 +104,11 @@ class TourApiService:
         로드뷰·주변 관광지(TourAPI 좌표 기반 검색)로 현재 모습을 확인할 수 있다.
         둘 다 안 되면(카카오 키가 없거나 매칭도 없으면) None — 호출부가 404로 처리한다.
         """
-        cache_key = f"location:{query}"
+        # v2: image_source_name(대체 사진 안내) 필드 추가로 스키마가 바뀌어 구버전
+        # 캐시(예전엔 이 필드 없이 image_url만 있었고, 서울처럼 "시/군" 접미사 없는
+        # 주소는 옛 로직에서 대체 사진도 못 찾아 image_url까지 null로 캐싱돼 있었다)를
+        # 그대로 읽으면 필드 자체가 없거나 값이 틀려 보인다 — 키를 올려 자연스럽게 무효화한다.
+        cache_key = f"location:v2:{query}"
 
         cached = await cache_get(cache_key)
         if cached is not None:
@@ -135,7 +139,7 @@ class TourApiService:
         큐레이션된 3곳 중 매칭되는 게 있으면 맨 앞에 포함하고, 나머지는 카카오
         로컬 API 실시간 검색 결과로 채운다.
         """
-        cache_key = f"locationsearch:{query}:{limit}"
+        cache_key = f"locationsearch:v2:{query}:{limit}"  # v2: location:v2와 동일한 이유
 
         cached = await cache_get(cache_key)
         if cached is not None:
@@ -163,11 +167,18 @@ class TourApiService:
         locations = []
         for place in places:
             # 이 장소 자체가 등록 관광지면(예: "수원화성") 그 사진을 먼저 쓴다 —
-            # 시/군 대표 사진으로 바로 넘어가면 실제 명소까지 전부 같은 도시
-            # 대표 사진 하나로 뒤덮인다(아파트처럼 등록 안 된 곳만 도시 사진으로 폴백).
-            image_url = await self.find_image_url(place["name"]) or await self.get_city_image(
-                place["address"]
-            )
+            # 대체 사진으로 바로 넘어가면 실제 명소까지 전부 대체 사진으로 뒤덮인다
+            # (아파트·지하철역처럼 등록 안 된 곳만 대체 사진으로 폴백).
+            own_image = await self.find_image_url(place["name"])
+            image_url = own_image
+            image_source_name = None
+            if own_image is None:
+                substitute = await self.find_photo_substitute(
+                    latitude=place["latitude"], longitude=place["longitude"], address=place["address"]
+                )
+                if substitute is not None:
+                    image_url = substitute["image_url"]
+                    image_source_name = substitute["name"]
             location = LocationResponse(
                 id=self._kakao_place_id(place),
                 name=place["name"],
@@ -178,6 +189,7 @@ class TourApiService:
                 is_cold_spot=False,
                 source="kakao",
                 image_url=image_url,
+                image_source_name=image_source_name,
                 latitude=place["latitude"],
                 longitude=place["longitude"],
             )
@@ -185,7 +197,7 @@ class TourApiService:
             # 카카오 REST API엔 "id로 상세 재조회" 엔드포인트가 없어서, 상세 화면
             # 진입(장소 ID로 직접 조회) 때 다시 찾을 수 있게 검색 시점에 미리 캐싱해둔다.
             await cache_set(
-                f"locationdetail:{location.id}", location.model_dump_json(), ex=_CACHE_TTL_SECONDS
+                f"locationdetail:v2:{location.id}", location.model_dump_json(), ex=_CACHE_TTL_SECONDS
             )
 
         return locations
@@ -309,6 +321,7 @@ class TourApiService:
             {
                 "title": item.get("title", ""),
                 "category": _CONTENT_TYPE_LABELS.get(item.get("contenttypeid", ""), "기타"),
+                "image_url": item.get("firstimage") or item.get("firstimage2") or None,
                 "distance_m": round(float(item["dist"])) if item.get("dist") else None,
                 "addr": item.get("addr1", ""),
                 "latitude": _parse_coord(item.get("mapy")),
@@ -364,7 +377,7 @@ class TourApiService:
         if location_id.startswith("kakao-"):
             # 카카오는 REST로 "id 상세 재조회"가 안 돼서, 검색 시점에 캐싱해둔
             # 걸 그대로 읽는다 — 캐시가 만료됐으면(30일) 찾을 수 없다.
-            cached = await cache_get(f"locationdetail:{location_id}")
+            cached = await cache_get(f"locationdetail:v2:{location_id}")
             if cached is None or cached == "null":
                 return None
             return LocationResponse.model_validate(json.loads(cached))
@@ -384,7 +397,7 @@ class TourApiService:
         if not settings.tour_api_key:
             return None
 
-        cache_key = f"locationdetail:{location_id}"
+        cache_key = f"locationdetail:v2:{location_id}"
         cached = await cache_get(cache_key)
         if cached is not None:
             return LocationResponse.model_validate(json.loads(cached)) if cached != "null" else None
@@ -417,6 +430,16 @@ class TourApiService:
         item = item_list[0]
         current_year = datetime.date.today().year
         overview = strip_html(item.get("overview") or "")
+        own_image = item.get("firstimage") or item.get("firstimage2") or None
+        latitude, longitude = _parse_coord(item.get("mapy")), _parse_coord(item.get("mapx"))
+        image_url, image_source_name = own_image, None
+        if own_image is None:
+            substitute = await self.find_photo_substitute(
+                latitude=latitude, longitude=longitude, address=item.get("addr1", "") or ""
+            )
+            if substitute is not None:
+                image_url = substitute["image_url"]
+                image_source_name = substitute["name"]
         location = LocationResponse(
             id=location_id,
             name=item.get("title", ""),
@@ -427,9 +450,10 @@ class TourApiService:
             current_year=current_year,
             is_cold_spot=False,
             source="tourapi",
-            image_url=item.get("firstimage") or item.get("firstimage2") or None,
-            latitude=_parse_coord(item.get("mapy")),
-            longitude=_parse_coord(item.get("mapx")),
+            image_url=image_url,
+            image_source_name=image_source_name,
+            latitude=latitude,
+            longitude=longitude,
         )
 
         await cache_set(cache_key, location.model_dump_json(), ex=_CACHE_TTL_SECONDS)
@@ -448,16 +472,24 @@ class TourApiService:
         정확히 이 장소 이름으로 매칭되는 사진이 없으면(예: "저전동 골목"은
         등록 관광지가 아님) 시/군 대표 사진으로 한 번 더 폴백한다.
         """
-        image_url, coords = await asyncio.gather(
+        own_image, coords = await asyncio.gather(
             self.find_image_url(f"{location.region} {location.name}"),
             self._kakao_local_service.geocode(simplify_place_name(location.region, location.name)),
         )
+        image_url, image_source_name = own_image, None
         if image_url is None:
-            image_url = await self.get_city_image(location.region)
+            latitude, longitude = coords if coords is not None else (None, None)
+            substitute = await self.find_photo_substitute(
+                latitude=latitude, longitude=longitude, address=location.region
+            )
+            if substitute is not None:
+                image_url = substitute["image_url"]
+                image_source_name = substitute["name"]
 
         updates: dict[str, object] = {}
         if image_url is not None:
             updates["image_url"] = image_url
+            updates["image_source_name"] = image_source_name
         if coords is not None:
             updates["latitude"], updates["longitude"] = coords
         return location.model_copy(update=updates) if updates else location
@@ -485,6 +517,39 @@ class TourApiService:
         image_url = results[0].image_url if results else None
         await cache_set(cache_key, image_url or "", ex=_IMAGE_CACHE_TTL_SECONDS)
         return image_url
+
+    async def find_photo_substitute(
+        self, *, latitude: float | None, longitude: float | None, address: str
+    ) -> dict | None:
+        """이 장소 자신의 사진이 없을 때 보여줄 대체 사진을 찾는다.
+
+        좌표가 있으면 반경 5km 내 사진이 있는 가장 가까운 등록 관광지를 먼저
+        찾고(거리순 정렬이라 첫 매치가 최단 거리), 없으면 시/군 대표 관광지로
+        폴백한다. 프론트엔드가 "OO 사진이 없어 가까운 XX 사진을 보여드려요"라고
+        안내할 수 있도록 대체 사진의 실제 장소 이름도 함께 돌려준다.
+        """
+        if latitude is not None and longitude is not None:
+            nearby = await self.find_nearby_places(
+                latitude=latitude, longitude=longitude, radius_m=5000, num_rows=15, content_type_id="12"
+            )
+            match = next((p for p in nearby if p["image_url"]), None)
+            if match is not None:
+                return {"image_url": match["image_url"], "name": match["title"]}
+
+        city = extract_city(address)
+        if city is None:
+            return None
+
+        cache_key = f"citysubstitute:{city}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return json.loads(cached) if cached != "null" else None
+
+        results = await self._search_from_tourapi(city.removesuffix("시").removesuffix("군"), num_rows=1)
+        result = results[0] if results and results[0].image_url else None
+        payload = {"image_url": result.image_url, "name": result.name} if result else None
+        await cache_set(cache_key, json.dumps(payload) if payload else "null", ex=_IMAGE_CACHE_TTL_SECONDS)
+        return payload
 
     async def find_image_url(self, keyword: str) -> str | None:
         """키워드로 등록된 관광지를 검색해 대표 사진 URL만 반환한다 (하위 호환 래퍼)."""

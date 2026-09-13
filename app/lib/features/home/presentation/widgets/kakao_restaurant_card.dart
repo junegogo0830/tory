@@ -11,6 +11,7 @@ import '../../../../core/theme/app_shadows.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/theme/category_colors.dart';
 import '../../../../data/models/kakao_restaurant.dart';
+import '../../../../shared/widgets/app_network_image.dart';
 import '../../data/home_providers.dart';
 
 enum _KakaoRestaurantMode { nationwide, nearby }
@@ -18,8 +19,9 @@ enum _KakaoRestaurantMode { nationwide, nearby }
 const int _kGroupSize = 3;
 
 /// 카카오맵 기반 맛집 추천 카드 — "전국"/"내 주변" 두 버튼으로 내용이 바뀌고,
-/// 한 번에 3개씩 애니메이션처럼 넘어간다. 카카오 로컬 API엔 사진이 없어서,
-/// 대신 카테고리별 파스텔 아이콘 배지로 밋밋해 보이지 않게 했다.
+/// 한 번에 3개씩 애니메이션처럼 넘어간다. 카카오 로컬 API 자체엔 사진이 없어서,
+/// 같은 이름으로 TourAPI에 등록된 사진이 있으면 그걸 쓰고, 없으면 카테고리별
+/// 파스텔 아이콘 배지로 밋밋해 보이지 않게 했다.
 class KakaoRestaurantCard extends ConsumerStatefulWidget {
   const KakaoRestaurantCard({super.key});
 
@@ -70,7 +72,7 @@ class _KakaoRestaurantCardState extends ConsumerState<KakaoRestaurantCard> {
         return;
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
       );
       if (mounted) setState(() => _position = position);
     } catch (_) {
@@ -142,7 +144,7 @@ class _KakaoRestaurantCardState extends ConsumerState<KakaoRestaurantCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('자세히보기', style: AppTypography.caption.copyWith(color: AppColors.inkSecondary)),
-                  const Icon(Icons.chevron_right, size: 14, color: AppColors.inkSecondary),
+                  Icon(Icons.chevron_right, size: 14, color: AppColors.inkSecondary),
                 ],
               ),
             ),
@@ -222,8 +224,8 @@ class _ModeButton extends StatelessWidget {
   }
 }
 
-/// 한 번에 3개씩 보여주는 그룹 — 카카오 데이터엔 사진이 없어서 대신 카테고리별
-/// 파스텔 아이콘 배지 + 옅은 그림자로 밋밋해 보이지 않게 카드감을 살렸다.
+/// 한 번에 3개씩 보여주는 그룹 — 사진이 없는 항목은 카테고리별 파스텔 아이콘
+/// 배지 + 옅은 그림자로 밋밋해 보이지 않게 카드감을 살렸다.
 class _RestaurantTickerGroup extends StatelessWidget {
   const _RestaurantTickerGroup({
     required this.restaurants,
@@ -277,9 +279,19 @@ class _RestaurantChip extends StatelessWidget {
 
   final KakaoRestaurant item;
 
+  Widget _iconBadge() {
+    final color = pastelForFoodCategory(item.category);
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+      child: Icon(iconForFoodCategory(item.category), size: 17, color: AppColors.ink),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final color = pastelForFoodCategory(item.category);
+    final imageUrl = item.imageUrl;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -290,12 +302,22 @@ class _RestaurantChip extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
-            child: Icon(iconForFoodCategory(item.category), size: 17, color: AppColors.ink),
-          ),
+          if (imageUrl == null)
+            _iconBadge()
+          else
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: AppNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => _iconBadge(),
+                  errorWidget: (_, _, _) => _iconBadge(),
+                ),
+              ),
+            ),
           const SizedBox(height: 8),
           Text(item.name, style: AppTypography.subhead.copyWith(fontWeight: FontWeight.w700, color: AppColors.ink), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),

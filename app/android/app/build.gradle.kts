@@ -18,7 +18,9 @@ val kakaoNativeAppKey: String = localProperties.getProperty("kakao.nativeAppKey"
 
 android {
     namespace = "com.yetgil.yetgil_app"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage 11.x가 SDK 37을 요구해서 flutter.compileSdkVersion(36)보다
+    // 올려야 한다 — AGP 9.0.1의 "권장 최대"는 36이지만 37 자체는 빌드 가능하다.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

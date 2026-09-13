@@ -1,11 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/category_colors.dart';
-import '../../../core/utils/image_proxy.dart';
 import '../../../data/models/tour_course.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/photo_fallback.dart';
@@ -14,16 +13,18 @@ import 'widgets/nearby_course_card.dart';
 import 'widgets/region_picker_sheet.dart';
 
 Widget _courseImage(TourCourse course, {required BoxFit fit}) {
-  if (course.imageUrl == null) return const PhotoFallback(icon: Icons.route_outlined);
-  return CachedNetworkImage(
-    imageUrl: resolveImageUrl(course.imageUrl!),
+  if (course.imageUrl == null) {
+    return const PhotoFallback(icon: Icons.route_outlined);
+  }
+  return AppNetworkImage(
+    imageUrl: course.imageUrl!,
     fit: fit,
     errorWidget: (_, _, _) => const PhotoFallback(icon: Icons.route_outlined),
     placeholder: (_, _) => const PhotoFallback(icon: Icons.route_outlined),
   );
 }
 
-const _categories = ['전체', '산책', '역사', '미식'];
+const _categories = ['전체', '산책', '역사', '미식', '문화', '자연', '가족'];
 
 class CourseListScreen extends ConsumerStatefulWidget {
   const CourseListScreen({super.key});
@@ -51,7 +52,9 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                 final filtered = category == '전체'
                     ? [...courses]
                     : courses.where((c) => c.category == category).toList();
-                filtered.sort((a, b) => b.sentimentScore.compareTo(a.sentimentScore));
+                filtered.sort(
+                  (a, b) => b.sentimentScore.compareTo(a.sentimentScore),
+                );
 
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(22, 24, 22, 36),
@@ -64,11 +67,20 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                             children: [
                               Text('추천 코스', style: AppTypography.title),
                               const SizedBox(height: 5),
-                              Text('추억에서 오늘의 여행으로', style: AppTypography.body.copyWith(color: AppColors.inkSecondary)),
+                              Text(
+                                '추억에서 오늘의 여행으로',
+                                style: AppTypography.body.copyWith(
+                                  color: AppColors.inkSecondary,
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.map_outlined, size: 35, color: AppColors.accentDeep),
+                        const Icon(
+                          Icons.map_outlined,
+                          size: 35,
+                          color: AppColors.accentDeep,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -92,16 +104,22 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                         itemBuilder: (context, index) => ChoiceChip(
                           label: Text(_categories[index]),
                           selected: selectedCategory == index,
-                          onSelected: (_) => setState(() => selectedCategory = index),
+                          onSelected: (_) =>
+                              setState(() => selectedCategory = index),
                           showCheckmark: false,
                           selectedColor: AppColors.accent,
                           backgroundColor: AppColors.surface,
-                          side: const BorderSide(color: AppColors.hairline),
+                          side: BorderSide(color: AppColors.hairline),
                           labelStyle: AppTypography.subhead.copyWith(
-                            color: selectedCategory == index ? Colors.white : AppColors.ink,
+                            color: selectedCategory == index
+                                ? Colors.white
+                                : AppColors.ink,
                             fontWeight: FontWeight.w600,
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
                         ),
                       ),
                     ),
@@ -120,12 +138,16 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                           builder: (context, constraints) {
                             final rest = filtered.skip(1).toList();
                             final cards = [
-                              for (final course in rest) _SmallCourse(course: course),
+                              for (final course in rest)
+                                _SmallCourse(course: course),
                             ];
                             if (constraints.maxWidth < 560) {
                               return Column(
                                 children: [
-                                  for (final card in cards) ...[card, const SizedBox(height: 14)],
+                                  for (final card in cards) ...[
+                                    card,
+                                    const SizedBox(height: 14),
+                                  ],
                                 ],
                               );
                             }
@@ -134,7 +156,10 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                               runSpacing: 14,
                               children: [
                                 for (final card in cards)
-                                  SizedBox(width: (constraints.maxWidth - 14) / 2, child: card),
+                                  SizedBox(
+                                    width: (constraints.maxWidth - 14) / 2,
+                                    child: card,
+                                  ),
                               ],
                             );
                           },
@@ -144,7 +169,9 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                   ],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              ),
               error: (_, _) => Center(
                 child: Text('불러오는 중 문제가 발생했어요', style: AppTypography.subhead),
               ),
@@ -170,7 +197,10 @@ class _FeaturedCourse extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: AspectRatio(aspectRatio: 16 / 7.5, child: _courseImage(course, fit: BoxFit.cover)),
+            child: AspectRatio(
+              aspectRatio: 16 / 7.5,
+              child: _courseImage(course, fit: BoxFit.cover),
+            ),
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -178,15 +208,28 @@ class _FeaturedCourse extends StatelessWidget {
             runSpacing: 9,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(course.title, style: AppTypography.title.copyWith(fontSize: 25)),
-              _InfoPill(icon: Icons.category_outlined, label: course.category, pastelColor: pastelForCategory(course.category)),
+              Text(
+                course.title,
+                style: AppTypography.title.copyWith(fontSize: 25),
+              ),
+              _InfoPill(
+                icon: Icons.category_outlined,
+                label: course.category,
+                pastelColor: pastelForCategory(course.category),
+              ),
             ],
           ),
           const SizedBox(height: 12),
+          Text(course.durationLabel, style: AppTypography.footnote),
+          const SizedBox(height: 6),
           Text(course.description, style: AppTypography.subhead),
           const SizedBox(height: 18),
           for (var i = 0; i < course.stops.length; i++)
-            _RouteStop(number: i + 1, title: course.stops[i].name, last: i == course.stops.length - 1),
+            _RouteStop(
+              number: i + 1,
+              title: course.stops[i].name,
+              last: i == course.stops.length - 1,
+            ),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
@@ -203,7 +246,11 @@ class _FeaturedCourse extends StatelessWidget {
 }
 
 class _RouteStop extends StatelessWidget {
-  const _RouteStop({required this.number, required this.title, this.last = false});
+  const _RouteStop({
+    required this.number,
+    required this.title,
+    this.last = false,
+  });
   final int number;
   final String title;
   final bool last;
@@ -221,9 +268,18 @@ class _RouteStop extends StatelessWidget {
                 CircleAvatar(
                   radius: 17,
                   backgroundColor: AppColors.accent,
-                  child: Text('$number', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    '$number',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                if (!last) Expanded(child: Container(width: 1, color: AppColors.hairline)),
+                if (!last)
+                  Expanded(
+                    child: Container(width: 1, color: AppColors.hairline),
+                  ),
               ],
             ),
           ),
@@ -250,14 +306,18 @@ class _InfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = pastelColor ?? AppColors.surface;
-    final foreground = pastelColor != null ? AppColors.accentDeep : AppColors.inkSecondary;
+    final foreground = pastelColor != null
+        ? AppColors.accentDeep
+        : AppColors.inkSecondary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(99),
-        border: pastelColor != null ? null : Border.all(color: AppColors.hairline),
+        border: pastelColor != null
+            ? null
+            : Border.all(color: AppColors.hairline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -266,9 +326,7 @@ class _InfoPill extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             label,
-            style: AppTypography.footnote.copyWith(
-              color: foreground,
-            ),
+            style: AppTypography.footnote.copyWith(color: foreground),
           ),
         ],
       ),
@@ -293,7 +351,10 @@ class _SmallCourse extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(13),
-              child: AspectRatio(aspectRatio: 16 / 9, child: _courseImage(course, fit: BoxFit.cover)),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _courseImage(course, fit: BoxFit.cover),
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -304,12 +365,16 @@ class _SmallCourse extends StatelessWidget {
               ),
               child: Text(
                 course.category,
-                style: AppTypography.caption.copyWith(color: AppColors.accentDeep),
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.accentDeep,
+                ),
               ),
             ),
             const SizedBox(height: 6),
             Text(course.title, style: AppTypography.headline),
             const SizedBox(height: 8),
+            Text(course.durationLabel, style: AppTypography.footnote),
+            const SizedBox(height: 6),
             Text(course.description, style: AppTypography.subhead),
           ],
         ),
@@ -319,9 +384,9 @@ class _SmallCourse extends StatelessWidget {
 }
 
 BoxDecoration _cardDecoration({required double radius}) => BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(radius),
-      boxShadow: const [
-        BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 7)),
-      ],
-    );
+  color: AppColors.surface,
+  borderRadius: BorderRadius.circular(radius),
+  boxShadow: const [
+    BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 7)),
+  ],
+);

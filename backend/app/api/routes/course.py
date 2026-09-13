@@ -1,10 +1,36 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...models.course import CourseResponse
+import asyncio
+from ...db.models import User
+from ...db.postgres import get_db_session
+from ...models.course import CourseResponse, CourseGenerateRequest
+from ...services.course_planner import CoursePlanner
+from ...services.profile import ProfileService
 from ...services.recommendation import RecommendationService
+from ..deps import get_optional_user
 
 router = APIRouter(prefix="/api/course", tags=["course"])
 _recommendation_service = RecommendationService()
+_planner = CoursePlanner()
+_profile_service = ProfileService()
+
+
+@router.post('/generate', response_model=CourseResponse)
+async def generate_course(
+    body: CourseGenerateRequest,
+    user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> CourseResponse:
+    try:
+        course = await asyncio.wait_for(_planner.generate(body), timeout=18)
+    except TimeoutError:
+        raise HTTPException(504, '지역 정보를 가져오는 데 시간이 걸려요. 잠시 후 다시 시도해주세요') from None
+    # 로그인 상태면 "내가 만든 코스"에 자동으로 영구 저장한다 — 별도 저장 버튼 없이
+    # 프로필 탭에서 바로 다시 볼 수 있게.
+    if user is not None:
+        await _profile_service.save_generated_course(db, user, course)
+    return course
 
 
 @router.get("", response_model=list[CourseResponse])

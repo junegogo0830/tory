@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/utils/image_proxy.dart';
 import '../../../../data/models/highlight_card.dart';
 import '../../../../shared/widgets/photo_fallback.dart';
 import '../../data/home_providers.dart';
@@ -30,7 +29,7 @@ class _HighlightCarouselState extends ConsumerState<HighlightCarousel> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) setState(() => _index++);
+      if (mounted && TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true)) setState(() => _index++);
     });
   }
 
@@ -98,8 +97,8 @@ class _HighlightCardTile extends StatelessWidget {
                 child: SizedBox(
                   width: 84,
                   height: 84,
-                  child: CachedNetworkImage(
-                    imageUrl: resolveImageUrl(card.imageUrl),
+                  child: AppNetworkImage(
+                    imageUrl: card.imageUrl,
                     fit: BoxFit.cover,
                     placeholder: (_, _) => const PhotoFallback(),
                     errorWidget: (_, _, _) => const PhotoFallback(),
@@ -142,8 +141,8 @@ class _HighlightCardTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.only(right: 14),
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
                 child: Icon(Icons.chevron_right, color: AppColors.inkTertiary),
               ),
             ],

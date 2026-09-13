@@ -7,6 +7,11 @@ class NewsItemResponse(BaseModel):
     title: str
     source: str
     summary: str
+    # 정확한 발행일(YYYY-MM-DD). 큐레이션 목 데이터처럼 연도만 아는 경우 None —
+    # 이때는 화면/정렬 모두 year로 폴백한다.
+    published_at: str | None = None
+    # 원문 기사 링크. 있으면 화면에서 "기사 보기"로 탭해 열 수 있다.
+    url: str | None = None
 
 
 class RegionStoryResponse(BaseModel):
