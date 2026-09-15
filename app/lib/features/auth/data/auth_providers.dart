@@ -25,6 +25,43 @@ class AuthNotifier extends AsyncNotifier<bool> {
     });
   }
 
+  /// 웹 전용 — 카카오 인증 서버 리다이렉트로 돌아온 뒤 main.dart가 호출한다.
+  Future<void> completeKakaoWebLogin(String code) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await ref.read(authRepositoryProvider).completeKakaoWebLogin(code);
+      return true;
+    });
+  }
+
+  Future<void> loginWithPassword(String username, String password) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await ref.read(authRepositoryProvider).loginWithPassword(username, password);
+      return true;
+    });
+  }
+
+  Future<void> signup({
+    required String username,
+    required String password,
+    required bool agreeTerms,
+    required bool agreePrivacy,
+    bool agreeMarketing = false,
+  }) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await ref.read(authRepositoryProvider).signup(
+            username: username,
+            password: password,
+            agreeTerms: agreeTerms,
+            agreePrivacy: agreePrivacy,
+            agreeMarketing: agreeMarketing,
+          );
+      return true;
+    });
+  }
+
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncData(false);

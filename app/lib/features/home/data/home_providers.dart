@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../data/models/highlight_card.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../data/models/kakao_restaurant.dart';
 import '../../../data/models/nearby_place.dart';
@@ -18,12 +17,6 @@ final weatherProvider =
     FutureProvider.family<WeatherInfo?, ({double lat, double lng})>((ref, coords) {
   final repo = ref.watch(weatherRepositoryProvider);
   return repo.getCurrentWeather(lat: coords.lat, lng: coords.lng);
-});
-
-/// 홈 화면 카드 캐러셀용 TourAPI 기반 인기 장소 10장(랜덤).
-final highlightCardsProvider = FutureProvider<List<HighlightCard>>((ref) {
-  final repo = ref.watch(highlightRepositoryProvider);
-  return repo.getHighlightCards();
 });
 
 /// 둘러보기 화면에서 사용하는 전체 장소 목록.

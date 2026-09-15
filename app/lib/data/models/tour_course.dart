@@ -8,6 +8,7 @@ class CourseStop {
     this.category = '',
     this.address = '',
     this.stayMinutes = 30,
+    this.imageUrl,
   });
 
   final String name;
@@ -16,6 +17,8 @@ class CourseStop {
   final String category;
   final String address;
   final int stayMinutes;
+  // TourAPI 검색으로 보강된 정류지 사진 — 없으면 화면에서 폴백 아이콘을 쓴다.
+  final String? imageUrl;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
@@ -27,6 +30,7 @@ class CourseStop {
       category: json['category'] as String? ?? '',
       address: json['address'] as String? ?? '',
       stayMinutes: json['stay_minutes'] as int? ?? 30,
+      imageUrl: json['image_url'] as String?,
     );
   }
 }

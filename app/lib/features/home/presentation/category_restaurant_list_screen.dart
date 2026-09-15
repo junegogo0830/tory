@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../data/models/restaurant_category.dart';
 import '../../../data/repositories/repository_providers.dart';
@@ -63,7 +62,7 @@ class _CategoryRestaurantListScreenState extends ConsumerState<CategoryRestauran
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -81,11 +80,24 @@ class _CategoryRestaurantListScreenState extends ConsumerState<CategoryRestauran
                               title: '맛집을 찾지 못했어요',
                               message: '잠시 후 다시 시도해주세요.',
                             )
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) => _RestaurantRow(item: _items[index]),
+                          // 항목마다 카드를 띄우는 대신 흰 컨테이너 하나 안에 줄로
+                          // 나열한다 — 같은 카드 수십 장이 반복되면 템플릿처럼 보인다.
+                          : ListView(
+                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                              children: [
+                                AppCard(
+                                  padding: EdgeInsets.zero,
+                                  child: Column(
+                                    children: [
+                                      for (var i = 0; i < _items.length; i++) ...[
+                                        _RestaurantRow(item: _items[i]),
+                                        if (i != _items.length - 1)
+                                          Divider(height: 1, indent: 86, endIndent: 14, color: AppColors.hairline),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                 ),
               ],
@@ -104,39 +116,46 @@ class _RestaurantRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(10),
+    return InkWell(
       onTap: () => context.push('/compare/${item.id}'),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.tile),
-            child: SizedBox(
-              width: 64,
-              height: 64,
-              child: item.imageUrl == null
-                  ? const PhotoFallback()
-                  : AppNetworkImage(
-                      imageUrl: item.imageUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) => const PhotoFallback(),
-                      errorWidget: (_, _, _) => const PhotoFallback(),
-                    ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 60,
+                height: 60,
+                child: item.imageUrl == null
+                    ? const PhotoFallback()
+                    : AppNetworkImage(
+                        imageUrl: item.imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => const PhotoFallback(),
+                        errorWidget: (_, _, _) => const PhotoFallback(),
+                      ),
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.name, style: AppTypography.headline, maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(item.region, style: AppTypography.footnote, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: AppTypography.body.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(item.region, style: AppTypography.footnote, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
             ),
-          ),
-          Icon(Icons.chevron_right, color: AppColors.inkTertiary),
-        ],
+            Icon(Icons.chevron_right, size: 20, color: AppColors.inkTertiary),
+          ],
+        ),
       ),
     );
   }

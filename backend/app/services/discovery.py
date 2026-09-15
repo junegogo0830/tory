@@ -242,6 +242,8 @@ class DiscoveryService:
                 image_url=image_url,
                 phone=place.get("phone"),
                 place_url=place.get("place_url"),
+                latitude=place.get("latitude"),
+                longitude=place.get("longitude"),
             )
             for place, image_url in zip(places, image_urls, strict=True)
         ]

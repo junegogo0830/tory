@@ -183,12 +183,18 @@ class RecommendationService:
             *(self._tour_api_service.find_place_info(stop.name) for stop in course.stops)
         )
 
-        enriched_stops = [
-            stop
-            if stop.latitude is not None or info is None
-            else stop.model_copy(update={"latitude": info["latitude"], "longitude": info["longitude"]})
-            for stop, info in zip(course.stops, infos, strict=True)
-        ]
+        enriched_stops = []
+        for stop, info in zip(course.stops, infos, strict=True):
+            if info is None:
+                enriched_stops.append(stop)
+                continue
+            updates: dict[str, object] = {}
+            if stop.latitude is None:
+                updates["latitude"] = info["latitude"]
+                updates["longitude"] = info["longitude"]
+            if info.get("image_url"):
+                updates["image_url"] = info["image_url"]
+            enriched_stops.append(stop.model_copy(update=updates) if updates else stop)
 
         image_url = course.image_url
         if image_url is None:

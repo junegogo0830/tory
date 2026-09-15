@@ -9,11 +9,11 @@ import '../../../../data/models/weather_info.dart';
 import '../../../../shared/widgets/yetgil_mark.dart';
 import '../../data/home_providers.dart';
 import 'top_attractions_ticker.dart';
-import 'weather_animations.dart';
 
-/// 로고 + 작은 검색창(+프로필)을 날씨 애니메이션 배경 위에 얹은 홈 상단 배너.
-/// 검색창 힌트 텍스트가 날씨/시간 기반 인사말이고, 텍스트를 입력하면 Flutter
-/// TextField 기본 동작으로 자동으로 사라진다(별도 로직 불필요).
+/// 홈 상단 기능 헤더 — 로고/타이틀, 프로필, 검색, HOT 지역을 실제 GUI
+/// control처럼 쌓아 보여준다. 검색창 힌트 텍스트가 날씨/시간 기반 인사말이고,
+/// 텍스트를 입력하면 Flutter TextField 기본 동작으로 자동으로 사라진다(별도
+/// 로직 불필요) — 날씨는 배경 장식이 아니라 이 인사말 문구 하나로만 드러낸다.
 class WeatherTopBanner extends ConsumerStatefulWidget {
   const WeatherTopBanner({super.key, required this.controller, required this.onSubmitted});
 
@@ -69,55 +69,56 @@ class _WeatherTopBannerState extends ConsumerState<WeatherTopBanner> {
           );
     final weather = weatherAsync.value;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      child: SizedBox(
-        height: 138,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            WeatherAnimatedBackground(condition: weather?.condition),
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const YetgilMark(size: 22),
-                        const SizedBox(width: 7),
-                        Text('옛길', style: AppTypography.title.copyWith(fontSize: 19)),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(child: _CompactSearchField(
-                          controller: widget.controller,
-                          onSubmitted: widget.onSubmitted,
-                          hintText: _greetingFor(weather, DateTime.now()),
-                        )),
-                        const SizedBox(width: 8),
-                        const _ProfileButton(),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    const HotTicker(),
-                  ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.fieldBg,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // 홈 화면은 로고 아이콘 대신 워드마크(글자) 이미지를 쓴다 — 아이콘은
+              // 옛길 게시판 카드 쪽으로 옮겼다(둘이 서로 자리를 바꿨다).
+              const YetgilWordmark(fontSize: 22),
+              const SizedBox(width: 10),
+              Container(width: 1, height: 16, color: AppColors.border),
+              const SizedBox(width: 10),
+              // 뷰포트가 아주 좁아질 때(개발자도구 패널로 창이 눌리는 순간 등)
+              // 이 Row 전체가 넘치지 않도록 태그라인을 줄어들 수 있게 한다.
+              // (Flexible+Spacer를 함께 쓰면 둘 다 flex:1이라 남는 공간을 반씩
+              // "예약"만 하고 Text가 그 절반을 다 안 쓰면 그만큼이 통째로
+              // 버려져 프로필 버튼이 오른쪽 끝까지 안 밀리는 버그였다 — Expanded
+              // 하나로 합쳐 남는 공간 전부가 프로필 버튼 앞까지 온전히 가게 한다.)
+              Expanded(
+                child: Text(
+                  '걷는 만큼,\n더 가까워지는 이야기',
+                  style: AppTypography.caption.copyWith(color: AppColors.inkSecondary, height: 1.25),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-          ],
-        ),
+              const _ProfileButton(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SearchField(
+            controller: widget.controller,
+            onSubmitted: widget.onSubmitted,
+            hintText: _greetingFor(weather, DateTime.now()),
+          ),
+          const SizedBox(height: 10),
+          const HotTicker(),
+        ],
       ),
     );
   }
 }
 
-class _CompactSearchField extends StatelessWidget {
-  const _CompactSearchField({
+class _SearchField extends StatelessWidget {
+  const _SearchField({
     required this.controller,
     required this.onSubmitted,
     required this.hintText,
@@ -127,45 +128,39 @@ class _CompactSearchField extends StatelessWidget {
   final VoidCallback onSubmitted;
   final String hintText;
 
-  static const double _radius = 20;
-
   @override
   Widget build(BuildContext context) {
-    // 흰색 배경과 갈색 테두리를 반드시 "같은" BoxDecoration 한 곳에서 그려야
-    // 정확히 같은 외곽선을 공유한다 — 이전엔 흰 배경은 이 Container(radius 20)가,
-    // 테두리는 앱 전역 InputDecorationTheme의 focusedBorder(포커스 시 자동 표시,
-    // radius는 AppRadius.field=13)가 각각 따로 그려서 서로 다른 반지름의 두 겹으로
-    // 어긋나 보였다. TextField 쪽 테두리는 전부 꺼서 이 컨테이너의 테두리만 남긴다.
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(_radius),
-        border: Border.all(color: AppColors.accent.withValues(alpha: 0.55), width: 1.2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_radius),
-        child: TextField(
-          controller: controller,
-          textInputAction: TextInputAction.search,
-          onSubmitted: (_) => onSubmitted(),
-          style: AppTypography.subhead,
-          decoration: InputDecoration(
-            isDense: true,
-            filled: false,
-            hintText: hintText,
-            hintStyle: AppTypography.subhead.copyWith(color: AppColors.inkTertiary),
-            hintMaxLines: 1,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            disabledBorder: InputBorder.none,
-            errorBorder: InputBorder.none,
-            focusedErrorBorder: InputBorder.none,
-            prefixIcon: Icon(Icons.search, color: AppColors.inkSecondary, size: 20),
-            prefixIconConstraints: const BoxConstraints(minWidth: 36),
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+    return TextField(
+      controller: controller,
+      textInputAction: TextInputAction.search,
+      onSubmitted: (_) => onSubmitted(),
+      style: AppTypography.subhead.copyWith(color: AppColors.ink),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: hintText,
+        hintStyle: AppTypography.subhead.copyWith(color: AppColors.inkTertiary),
+        hintMaxLines: 1,
+        prefixIcon: Icon(Icons.search, color: AppColors.inkSecondary, size: 20),
+        prefixIconConstraints: const BoxConstraints(minWidth: 40),
+        // 검색 필터(기간/카테고리 등)는 아직 없다 — 목업의 자리만 우선 잡아둔다.
+        suffixIcon: IconButton(
+          icon: Icon(Icons.tune, color: AppColors.inkSecondary, size: 20),
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('아직 준비 중인 기능이에요')),
           ),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        // 검색창만 배경(fieldBg)과 다른 흰색으로 — 헤더 배경에 묻히지 않고
+        // 도드라지게. 다른 텍스트필드는 그대로 테마 기본값(fieldBg)을 쓴다.
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.field),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.field),
+          borderSide: BorderSide(color: AppColors.border),
         ),
       ),
     );
@@ -181,13 +176,10 @@ class _ProfileButton extends StatelessWidget {
       onTap: () => context.go('/profile'),
       borderRadius: BorderRadius.circular(99),
       child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.surface.withValues(alpha: 0.92),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.person, color: AppColors.accentDeep, size: 20),
+        width: 36,
+        height: 36,
+        decoration: const BoxDecoration(color: AppColors.iconChipBg, shape: BoxShape.circle),
+        child: const Icon(Icons.person, color: AppColors.iconChipFg, size: 19),
       ),
     );
   }

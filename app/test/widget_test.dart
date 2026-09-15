@@ -13,7 +13,7 @@ import 'package:yetgil_app/data/repositories/repository_providers.dart';
 import 'package:yetgil_app/features/auth/data/auth_providers.dart';
 import 'package:yetgil_app/features/home/data/home_providers.dart';
 import 'package:yetgil_app/features/home/presentation/home_screen.dart';
-import 'package:yetgil_app/features/home/presentation/widgets/highlight_carousel.dart';
+import 'package:yetgil_app/features/home/presentation/widgets/hero_highlight_banner.dart';
 
 class GuestAuth extends AuthNotifier {
   @override
@@ -101,7 +101,6 @@ void main() {
       ProviderScope(
         overrides: [
           recentLocationsProvider.overrideWith((ref) async => []),
-          highlightCardsProvider.overrideWith((ref) async => []),
           restaurantCategoriesProvider.overrideWith((ref) async => []),
           topAttractionsProvider.overrideWith((ref) async => []),
           kakaoRestaurantsNationwideProvider.overrideWith((ref) async => []),
@@ -114,12 +113,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(TextField), findsOneWidget);
-    final initial = tester.state(find.byType(HighlightCarousel));
+    final initial = tester.state(find.byType(HeroHighlightBanner));
     await tester.enterText(find.byType(TextField), '청명역');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     expect(
-      identical(initial, tester.state(find.byType(HighlightCarousel))),
+      identical(initial, tester.state(find.byType(HeroHighlightBanner))),
       isTrue,
     );
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -130,7 +129,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(
-      identical(initial, tester.state(find.byType(HighlightCarousel))),
+      identical(initial, tester.state(find.byType(HeroHighlightBanner))),
       isTrue,
     );
     expect(

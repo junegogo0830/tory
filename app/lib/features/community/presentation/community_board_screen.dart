@@ -13,6 +13,7 @@ import '../../../shared/widgets/photo_fallback.dart';
 import '../data/community_providers.dart';
 import '../domain/community_board.dart';
 import 'memory_upload_flow.dart';
+import 'widgets/trade_status_chip.dart';
 
 class CommunityBoardScreen extends ConsumerStatefulWidget {
   const CommunityBoardScreen({
@@ -96,6 +97,24 @@ class _CommunityBoardScreenState extends ConsumerState<CommunityBoardScreen> {
             Text(widget.region, style: AppTypography.caption),
           ],
         ),
+        actions: [
+          if (board.id == 'memory')
+            IconButton(
+              tooltip: '연도별 타임라인',
+              icon: const Icon(Icons.timeline),
+              onPressed: () => context.push(
+                '/memory-timeline/${Uri.encodeComponent(widget.region)}',
+              ),
+            ),
+          if (board.isMapBoard)
+            IconButton(
+              tooltip: '지도로 보기',
+              icon: const Icon(Icons.map_outlined),
+              onPressed: () => context.push(
+                '/community-map/${Uri.encodeComponent(widget.region)}/${board.id}',
+              ),
+            ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.accent,
@@ -147,13 +166,20 @@ class _CommunityBoardScreenState extends ConsumerState<CommunityBoardScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       if (index < _posts.length) {
+                        final post = _posts[index];
                         return GestureDetector(
                           onTap: () async {
-                            await context.push('/post/${_posts[index].id}');
+                            if (!post.revealed) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('${_formatDate(post.revealAt!.toLocal())}에 열려요')),
+                              );
+                              return;
+                            }
+                            await context.push('/post/${post.id}');
                             if (mounted) _load();
                           },
                           child: AbsorbPointer(
-                            child: _PostCard(post: _posts[index], board: board),
+                            child: _PostCard(post: post, board: board),
                           ),
                         );
                       }
@@ -220,6 +246,8 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!post.revealed) return _LockedTimeCapsuleCard(post: post);
+
     return AppCard(
       onTap: () async {
         await context.push('/post/${post.id}');
@@ -271,6 +299,21 @@ class _PostCard extends StatelessWidget {
                 ),
             ],
           ),
+          if (board.isTradeBoard && (post.price != null || post.tradeStatus != null)) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (post.tradeStatus != null) ...[
+                  TradeStatusChip(status: post.tradeStatus!),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  post.price != null ? '${formatPrice(post.price!)}원' : '나눔',
+                  style: AppTypography.subhead.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ],
           if (post.title != null && post.caption != null) ...[
             const SizedBox(height: 6),
             Text(
@@ -304,6 +347,54 @@ class _PostCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 타임캡슐 편지가 아직 봉인 해제 전일 때 보여주는 잠긴 카드 — 내용은 아예
+/// 서버가 안 내려주니(services/community.py 참고) 여기선 남은 기간만 보여준다.
+class _LockedTimeCapsuleCard extends StatelessWidget {
+  const _LockedTimeCapsuleCard({required this.post});
+
+  final CommunityPost post;
+
+  @override
+  Widget build(BuildContext context) {
+    final revealAt = post.revealAt;
+    final daysLeft = revealAt == null
+        ? null
+        : revealAt.toLocal().difference(DateTime.now()).inDays + 1;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.pastelRose.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.pastelRose),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.mail_lock_outlined, color: AppColors.accentDeep, size: 28),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('봉인된 편지', style: AppTypography.headline),
+                const SizedBox(height: 2),
+                Text(
+                  revealAt == null
+                      ? '아직 열 수 없어요'
+                      : daysLeft != null && daysLeft > 0
+                          ? '${_formatDate(revealAt.toLocal())}에 열려요 (D-$daysLeft)'
+                          : '곧 열려요',
+                  style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary),
+                ),
+              ],
+            ),
           ),
         ],
       ),

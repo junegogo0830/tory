@@ -155,6 +155,9 @@ class CourseGeneratorService:
                 name=name,
                 latitude=candidates_by_name[name]["latitude"],
                 longitude=candidates_by_name[name]["longitude"],
+                category=candidates_by_name[name].get("category", ""),
+                address=candidates_by_name[name].get("addr", ""),
+                image_url=candidates_by_name[name].get("image_url"),
             )
             for name in stop_names
         ]

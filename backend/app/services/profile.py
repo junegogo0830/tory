@@ -1,18 +1,30 @@
-from fastapi import UploadFile
+import datetime
+
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import desc, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import settings
-from ..db.models import CommunityPost, CompletedCourse, SavedLocation, User, UserCourse
+from ..db.models import CommunityPost, CompletedCourse, CustomCourse, SavedCourse, SavedLocation, User, UserCourse
 from ..models.course import CourseResponse
-from ..models.profile import MyMemoryResponse, ProfileResponse, SavedLocationSummary
+from ..models.profile import MyMemoryResponse, ProfileInfoUpdateRequest, ProfileResponse, SavedCourseResponse, SavedLocationSummary
+from .custom_course import CustomCourseService
 from .photo_upload import save_uploaded_photo
+from .recommendation import RecommendationService
 from .tourapi import TourApiService
 
 
 class ProfileService:
-    def __init__(self, tour_api_service: TourApiService | None = None) -> None:
+    def __init__(
+        self,
+        tour_api_service: TourApiService | None = None,
+        recommendation_service: RecommendationService | None = None,
+        custom_course_service: CustomCourseService | None = None,
+    ) -> None:
         self._tour_api_service = tour_api_service or TourApiService()
+        self._recommendation_service = recommendation_service or RecommendationService()
+        self._custom_course_service = custom_course_service or CustomCourseService()
 
     async def get_profile(self, db: AsyncSession, user: User) -> ProfileResponse:
         saved_rows = await db.execute(
@@ -26,26 +38,60 @@ class ProfileService:
             SavedLocationSummary(id=loc.id, name=loc.name, region=loc.region) for loc in locations if loc is not None
         ]
 
-        completed_count_row = await db.execute(
-            select(func.count()).select_from(CompletedCourse).where(CompletedCourse.user_id == user.id)
+        registered_course_count = await db.scalar(
+            select(func.count()).select_from(CustomCourse).where(CustomCourse.user_id == user.id)
         )
-        completed_count = completed_count_row.scalar_one()
-
-        memory_count_row = await db.execute(
+        saved_course_count = await db.scalar(
+            select(func.count()).select_from(SavedCourse).where(SavedCourse.user_id == user.id)
+        )
+        post_count = await db.scalar(
             select(func.count()).select_from(CommunityPost).where(CommunityPost.user_id == user.id)
         )
-        memory_count = memory_count_row.scalar_one()
 
         return ProfileResponse(
+            user_id=user.id,
             display_name=user.nickname,
             tagline="나의 추억 여행을 기록하고 있어요",
             profile_image_url=user.profile_image_url,
-            saved_locations_count=len(saved_locations),
-            completed_courses_count=completed_count,
-            memory_photo_count=memory_count,
+            registered_course_count=registered_course_count or 0,
+            saved_course_count=saved_course_count or 0,
+            post_count=post_count or 0,
             saved_locations=saved_locations,
             home_region=user.home_region,
+            age_group=user.age_group,
+            gender=user.gender,
+            full_name=user.full_name,
+            phone_number=user.phone_number,
+            onboarding_completed=user.onboarded_at is not None,
+            has_password=user.password_hash is not None,
         )
+
+    async def update_info(self, db: AsyncSession, user: User, body: ProfileInfoUpdateRequest) -> User:
+        if body.gender is not None:
+            user.gender = body.gender
+        if body.full_name is not None:
+            user.full_name = body.full_name.strip() or None
+        if body.phone_number is not None:
+            phone = body.phone_number.strip() or None
+            if phone is not None:
+                existing = await db.scalar(
+                    select(User.id).where(User.phone_number == phone, User.id != user.id)
+                )
+                if existing is not None:
+                    raise HTTPException(422, '이미 다른 계정에서 쓰고 있는 번호예요')
+            user.phone_number = phone
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    async def complete_onboarding(self, db: AsyncSession, user: User, age_group: str | None) -> User:
+        """첫 로그인 온보딩 — 완료든 건너뛰기든 호출하면 다시 안 뜨게 된다."""
+        if age_group is not None:
+            user.age_group = age_group
+        user.onboarded_at = datetime.datetime.now(datetime.timezone.utc)
+        await db.commit()
+        await db.refresh(user)
+        return user
 
     async def save_location(self, db: AsyncSession, user: User, location_id: str) -> None:
         existing = await db.execute(
@@ -103,6 +149,85 @@ class ProfileService:
         """"내가 만든 코스" 영구 저장 — 코스 생성(POST /api/course/generate) 시점에 자동 호출된다."""
         db.add(UserCourse(user_id=user.id, course_id=course.id, course_json=course.model_dump_json()))
         await db.commit()
+
+    async def save_course(self, db: AsyncSession, user: User, course_type: str, course_id: str) -> None:
+        """코스 북마크. generated는 지금 이 순간의 코스를 스냅샷해둔다(캐시가 나중에
+        만료돼도 저장한 내용은 그대로 보이게) — custom은 우리 DB가 소스 오브
+        트루스라 존재 확인만 하고 매번 그때그때 조회한다."""
+        course_json: str | None = None
+        if course_type == "generated":
+            course = await self._recommendation_service.get_course_by_id(course_id)
+            if course is None:
+                raise HTTPException(404, "존재하지 않는 코스예요")
+            course_json = course.model_dump_json()
+        elif course_type == "custom":
+            await self._custom_course_service.require_course(db, int(course_id))
+        else:
+            raise HTTPException(422, "올바르지 않은 코스 종류예요")
+
+        stmt = insert(SavedCourse).values(
+            user_id=user.id, course_type=course_type, course_id=course_id, course_json=course_json
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=[SavedCourse.user_id, SavedCourse.course_type, SavedCourse.course_id])
+        await db.execute(stmt)
+        await db.commit()
+
+    async def unsave_course(self, db: AsyncSession, user: User, course_type: str, course_id: str) -> None:
+        row = await db.scalar(
+            select(SavedCourse).where(
+                SavedCourse.user_id == user.id, SavedCourse.course_type == course_type, SavedCourse.course_id == course_id
+            )
+        )
+        if row is not None:
+            await db.delete(row)
+            await db.commit()
+
+    async def is_course_saved(self, db: AsyncSession, user: User, course_type: str, course_id: str) -> bool:
+        row = await db.scalar(
+            select(SavedCourse.id).where(
+                SavedCourse.user_id == user.id, SavedCourse.course_type == course_type, SavedCourse.course_id == course_id
+            )
+        )
+        return row is not None
+
+    async def list_saved_courses(self, db: AsyncSession, user: User) -> list[SavedCourseResponse]:
+        rows = await db.execute(
+            select(SavedCourse).where(SavedCourse.user_id == user.id).order_by(desc(SavedCourse.created_at))
+        )
+        results: list[SavedCourseResponse] = []
+        for saved in rows.scalars().all():
+            if saved.course_type == "generated":
+                if saved.course_json is None:
+                    continue
+                course = CourseResponse.model_validate_json(saved.course_json)
+                results.append(
+                    SavedCourseResponse(
+                        course_type="generated",
+                        course_id=saved.course_id,
+                        title=course.title,
+                        category=course.category,
+                        thumbnail_url=course.image_url,
+                        place_count=len(course.stops),
+                        saved_at=saved.created_at,
+                    )
+                )
+            else:
+                try:
+                    course = await self._custom_course_service.detail(db, int(saved.course_id))
+                except HTTPException:
+                    continue  # 삭제된 커스텀 코스는 조용히 뺀다.
+                results.append(
+                    SavedCourseResponse(
+                        course_type="custom",
+                        course_id=saved.course_id,
+                        title=course.title,
+                        category=course.category,
+                        thumbnail_url=next((p.image_url for p in course.places if p.image_url), None),
+                        place_count=len(course.places),
+                        saved_at=saved.created_at,
+                    )
+                )
+        return results
 
     async def get_my_courses(self, db: AsyncSession, user: User, *, limit: int = 30, offset: int = 0) -> list[CourseResponse]:
         rows = await db.execute(

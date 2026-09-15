@@ -23,6 +23,26 @@ def test_kakao_login_rejects_missing_body() -> None:
     assert response.status_code == 422
 
 
+def test_kakao_login_web_rejects_missing_body() -> None:
+    response = client.post("/api/auth/kakao/login-web", json={})
+    assert response.status_code == 422
+
+
+def test_kakao_login_web_rejects_invalid_code(monkeypatch) -> None:
+    from app.services.kakao_auth import KakaoAuthError, KakaoAuthService
+
+    async def _invalid_code(self, code: str, redirect_uri: str) -> str:  # noqa: ARG001
+        raise KakaoAuthError("Kakao code exchange failed: 400 invalid_grant")
+
+    monkeypatch.setattr(KakaoAuthService, "exchange_code_for_token", _invalid_code)
+    response = client.post(
+        "/api/auth/kakao/login-web", json={"code": "bad-code", "redirect_uri": "http://localhost:5000/"}
+    )
+    assert response.status_code == 401
+
+
+
+
 def test_saved_locations_endpoint_requires_auth() -> None:
     response = client.post("/api/profile/saved-locations/suncheon-jeonpo")
     assert response.status_code == 401

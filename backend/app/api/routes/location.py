@@ -1,11 +1,14 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from ...models.custom_course import KakaoPlaceSearchResult
 from ...models.location import LocationResponse
 from ...models.nearby_place import NearbyPlace
+from ...services.kakao_local import KakaoLocalService
 from ...services.tourapi import TourApiService
 
 router = APIRouter(prefix="/api/location", tags=["location"])
 _tour_api_service = TourApiService()
+_kakao_local_service = KakaoLocalService()
 
 
 @router.get("/all", response_model=list[LocationResponse])
@@ -33,6 +36,30 @@ async def resolve_location(query: str = Query(..., min_length=1)) -> LocationRes
     if location is None:
         raise HTTPException(status_code=404, detail="Location not found")
     return location
+
+
+@router.get("/kakao-search", response_model=list[KakaoPlaceSearchResult])
+async def search_kakao_places(
+    query: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=15)
+) -> list[KakaoPlaceSearchResult]:
+    """코스 커스텀에서 "카카오맵 기반"으로 장소를 추가할 때 쓰는 자유 검색 —
+    관광지로 등록된 곳만 나오는 TourAPI 검색과 달리 식당/카페 등 실제 장소
+    전반이 대상이다. id가 없는 결과(키워드 검색이 실패해 순수 주소 검색으로
+    폴백된 경우, KakaoLocalService._search_places_multi 참고)는 실제 "장소"가
+    아니라 코스에 넣을 대상으로 부적절해 제외한다.
+    """
+    places = await _kakao_local_service.search_places(query, limit=limit)
+    return [
+        KakaoPlaceSearchResult(
+            id=place["id"],
+            name=place["name"],
+            address=place["address"],
+            latitude=place["latitude"],
+            longitude=place["longitude"],
+        )
+        for place in places
+        if place.get("id")
+    ]
 
 
 @router.get("/{location_id}", response_model=LocationResponse)

@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../data/models/saved_course.dart';
+import '../../../data/repositories/repository_providers.dart';
+import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_network_image.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/photo_fallback.dart';
+
+/// 프로필 "저장한 코스" — AI 생성 코스/코스 커스텀을 북마크한 목록.
+class SavedCoursesScreen extends ConsumerWidget {
+  const SavedCoursesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final savedAsync = ref.watch(savedCoursesProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.paper,
+      appBar: AppBar(title: const Text('저장한 코스')),
+      body: SafeArea(
+        child: savedAsync.when(
+          data: (courses) {
+            if (courses.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: EmptyState(
+                    icon: Icons.bookmark_border,
+                    title: '아직 저장한 코스가 없어요',
+                    message: '코스 상세 화면의 저장 버튼으로 나중에 볼 코스를 담아두세요.',
+                  ),
+                ),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.all(20),
+              itemCount: courses.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 14),
+              itemBuilder: (context, index) => _SavedCourseCard(course: courses[index]),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          error: (_, _) => Center(child: Text('불러오지 못했어요', style: AppTypography.subhead)),
+        ),
+      ),
+    );
+  }
+}
+
+final savedCoursesProvider = FutureProvider<List<SavedCourse>>((ref) {
+  return ref.watch(savedCourseRepositoryProvider).list();
+});
+
+class _SavedCourseCard extends StatelessWidget {
+  const _SavedCourseCard({required this.course});
+
+  final SavedCourse course;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: () => context.push(course.isCustom ? '/custom-courses/${course.courseId}' : '/course/${course.courseId}'),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppRadius.card)),
+            child: SizedBox(
+              width: 88,
+              height: 88,
+              child: course.thumbnailUrl != null
+                  ? AppNetworkImage(
+                      imageUrl: course.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => const PhotoFallback(icon: Icons.route_outlined),
+                      errorWidget: (_, _, _) => const PhotoFallback(icon: Icons.route_outlined),
+                    )
+                  : const PhotoFallback(icon: Icons.route_outlined),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(course.title, style: AppTypography.headline, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  Text(
+                    [if (course.category != null) course.category!, '장소 ${course.placeCount}곳'].join(' · '),
+                    style: AppTypography.caption.copyWith(color: AppColors.accentDeep),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

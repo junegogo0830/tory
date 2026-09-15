@@ -101,6 +101,11 @@ def _no_live_kakao_search_calls(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(KakaoLocalService, "search_places", _no_places)
 
+    async def _no_schools(self: KakaoLocalService, query: str, limit: int = 8):  # noqa: ARG001
+        return []
+
+    monkeypatch.setattr(KakaoLocalService, "search_schools", _no_schools)
+
 
 @pytest.fixture(autouse=True)
 def _no_live_tourapi_nearby_calls(monkeypatch: pytest.MonkeyPatch) -> None:

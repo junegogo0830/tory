@@ -11,8 +11,11 @@ import '../../../../shared/widgets/photo_fallback.dart';
 import '../../data/home_providers.dart';
 
 const double _kHeroHeight = 150;
-const double _kHeadlineHeight = 24;
-const double _kThumbRowHeight = 100;
+const double _kHeadlineHeight = 26;
+// 캡션 한 줄(캡션 서체 실제 렌더 높이는 폰트/브라우저마다 계산치보다 커질 수
+// 있다) + 썸네일(72) + 여백(5)이 빠듯하게 맞아떨어져 실기기에서 "BOTTOM
+// OVERFLOWED BY 2.0 PIXELS"가 났다 — 여유를 넉넉히 둔다.
+const double _kThumbRowHeight = 112;
 const double _kFooterHeight = 28;
 const double _kCardHeight = _kHeroHeight + 8 + _kHeadlineHeight + 8 + _kThumbRowHeight + 4 + _kFooterHeight;
 
@@ -52,11 +55,8 @@ class _RestaurantCategoriesCarouselState extends ConsumerState<RestaurantCategor
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '관광공사 Pick이 궁금하신가요?',
-              style: AppTypography.footnote.copyWith(color: AppColors.ink, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
+            Text('관광공사 Pick이 궁금하신가요?', style: AppTypography.sectionTitle),
+            const SizedBox(height: 12),
             SizedBox(
               height: _kCardHeight,
               child: PageView.builder(
@@ -112,15 +112,15 @@ class _ArrowButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(99),
       child: Container(
-        width: 32,
-        height: 32,
+        width: 30,
+        height: 30,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: AppColors.surface,
           shape: BoxShape.circle,
-          boxShadow: AppShadows.tile,
+          border: Border.all(color: AppColors.hairline),
         ),
-        child: Icon(icon, size: 20, color: onTap == null ? AppColors.inkTertiary : AppColors.ink),
+        child: Icon(icon, size: 18, color: onTap == null ? AppColors.inkTertiary : AppColors.ink),
       ),
     );
   }
@@ -142,6 +142,17 @@ class _CategoryCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.card),
         boxShadow: AppShadows.card,
+      ),
+      // border는 decoration이 아니라 foregroundDecoration에 그린다 — Container는
+      // decoration에 border가 있으면 그 두께만큼 child에 자동으로 padding을
+      // 넣는데(설령 padding: EdgeInsets.zero를 명시해도 둘을 더할 뿐 안 꺼진다,
+      // Container._paddingIncludingDecoration 참고), 이 카드는 내부가
+      // _kCardHeight 공식과 정확히 맞춘 고정 높이 예산이라 그 2px만큼 안이
+      // 좁아져 "RenderFlex overflowed by 2.0 pixels"가 났다. foregroundDecoration은
+      // 레이아웃에 전혀 관여하지 않고 위에 그리기만 해서 이 문제가 없다.
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,7 +178,7 @@ class _CategoryCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   category.headline,
-                  style: AppTypography.headline.copyWith(color: AppColors.ink),
+                  style: AppTypography.headline.copyWith(color: AppColors.ink, fontWeight: FontWeight.w700),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -249,10 +260,10 @@ class _ThumbCard extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 5),
           Text(
             item.name,
-            style: AppTypography.caption.copyWith(color: AppColors.ink, fontWeight: FontWeight.w600),
+            style: AppTypography.caption.copyWith(color: AppColors.ink, fontWeight: FontWeight.w500),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

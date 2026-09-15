@@ -196,3 +196,7 @@ async def test_list_posts_by_user_scopes_to_region(db):
 
     posts = await service.list_posts_by_user(db, author_id=author.id, region='서울 종로구')
     assert [p.title for p in posts] == ['종로글']
+
+    # region 없이 부르면(프로필 "등록한 게시글") 지역 무관 전체 글이 나온다.
+    all_posts = await service.list_posts_by_user(db, author_id=author.id)
+    assert {p.title for p in all_posts} == {'종로글', '수원글'}

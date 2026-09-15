@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/category_colors.dart';
 import '../../../data/models/tour_course.dart';
@@ -65,27 +67,38 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('추천 코스', style: AppTypography.title),
-                              const SizedBox(height: 5),
+                              Text(
+                                '추천 코스',
+                                style: AppTypography.title.copyWith(
+                                  fontSize: 22,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
                               Text(
                                 '추억에서 오늘의 여행으로',
-                                style: AppTypography.body.copyWith(
-                                  color: AppColors.inkSecondary,
-                                ),
+                                style: AppTypography.subhead,
                               ),
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.map_outlined,
-                          size: 35,
-                          color: AppColors.accentDeep,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.pastelMint,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.map_outlined,
+                            size: 21,
+                            color: AppColors.accentDeep,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
                     const NearbyCourseCard(),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -94,36 +107,43 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                         label: const Text('지역 선택해서 코스 만들기'),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 26),
                     SizedBox(
-                      height: 44,
+                      height: 40,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _categories.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (context, index) => ChoiceChip(
-                          label: Text(_categories[index]),
-                          selected: selectedCategory == index,
-                          onSelected: (_) =>
-                              setState(() => selectedCategory = index),
-                          showCheckmark: false,
-                          selectedColor: AppColors.accent,
-                          backgroundColor: AppColors.surface,
-                          side: BorderSide(color: AppColors.hairline),
-                          labelStyle: AppTypography.subhead.copyWith(
-                            color: selectedCategory == index
-                                ? Colors.white
-                                : AppColors.ink,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 10,
-                          ),
-                        ),
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final selected = selectedCategory == index;
+                          return ChoiceChip(
+                            label: Text(_categories[index]),
+                            selected: selected,
+                            onSelected: (_) =>
+                                setState(() => selectedCategory = index),
+                            showCheckmark: false,
+                            selectedColor: AppColors.accent,
+                            backgroundColor: AppColors.surface,
+                            side: BorderSide(
+                              color: selected
+                                  ? AppColors.accent
+                                  : AppColors.hairline,
+                            ),
+                            shape: const StadiumBorder(),
+                            labelStyle: AppTypography.footnote.copyWith(
+                              color: selected ? Colors.white : AppColors.ink,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          );
+                        },
                       ),
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 18),
                     if (filtered.isEmpty)
                       const EmptyState(
                         icon: Icons.route_outlined,
@@ -189,57 +209,67 @@ class _FeaturedCourse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDecoration(radius: 22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: AspectRatio(
-              aspectRatio: 16 / 7.5,
-              child: _courseImage(course, fit: BoxFit.cover),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                course.title,
-                style: AppTypography.title.copyWith(fontSize: 25),
+    // 예전엔 이 카드에만 "코스 시작하기" 버튼이 있어서 아래 _SmallCourse
+    // 카드들(카드 전체를 눌러 들어가는 방식)과 진입 방법이 서로 달랐다 —
+    // 버튼을 없애고 카드 전체를 누르는 방식으로 통일한다.
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: () => context.push('/course/${course.id}'),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: _cardDecoration(radius: AppRadius.card),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 7.5,
+                child: _courseImage(course, fit: BoxFit.cover),
               ),
-              _InfoPill(
-                icon: Icons.category_outlined,
-                label: course.category,
-                pastelColor: pastelForCategory(course.category),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  course.title,
+                  style: AppTypography.title.copyWith(
+                    fontSize: 22,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                _InfoPill(
+                  icon: Icons.category_outlined,
+                  label: course.category,
+                  pastelColor: pastelForCategory(course.category),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              course.durationLabel,
+              style: AppTypography.footnote.copyWith(
+                color: AppColors.accentDeep,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(course.durationLabel, style: AppTypography.footnote),
-          const SizedBox(height: 6),
-          Text(course.description, style: AppTypography.subhead),
-          const SizedBox(height: 18),
-          for (var i = 0; i < course.stops.length; i++)
-            _RouteStop(
-              number: i + 1,
-              title: course.stops[i].name,
-              last: i == course.stops.length - 1,
             ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => context.push('/course/${course.id}'),
-              icon: const Icon(Icons.flag_outlined),
-              label: const Text('코스 시작하기'),
+            const SizedBox(height: 6),
+            Text(
+              course.description,
+              style: AppTypography.subhead.copyWith(height: 1.5),
             ),
-          ),
-        ],
+            const SizedBox(height: 18),
+            for (var i = 0; i < course.stops.length; i++)
+              _RouteStop(
+                number: i + 1,
+                title: course.stops[i].name,
+                last: i == course.stops.length - 1,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -262,16 +292,17 @@ class _RouteStop extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 36,
+            width: 30,
             child: Column(
               children: [
                 CircleAvatar(
-                  radius: 17,
+                  radius: 14,
                   backgroundColor: AppColors.accent,
                   child: Text(
                     '$number',
                     style: const TextStyle(
                       color: Colors.white,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -286,8 +317,14 @@ class _RouteStop extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: Text(title, style: AppTypography.headline),
+              padding: const EdgeInsets.only(top: 4, bottom: 16),
+              child: Text(
+                title,
+                style: AppTypography.body.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -311,10 +348,10 @@ class _InfoPill extends StatelessWidget {
         : AppColors.inkSecondary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(AppRadius.tag),
         border: pastelColor != null
             ? null
             : Border.all(color: AppColors.hairline),
@@ -322,11 +359,14 @@ class _InfoPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: foreground),
-          const SizedBox(width: 5),
+          Icon(icon, size: 13, color: foreground),
+          const SizedBox(width: 4),
           Text(
             label,
-            style: AppTypography.footnote.copyWith(color: foreground),
+            style: AppTypography.caption.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -341,16 +381,16 @@ class _SmallCourse extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: () => context.push('/course/${course.id}'),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: _cardDecoration(radius: 18),
+        decoration: _cardDecoration(radius: AppRadius.card),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(10),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: _courseImage(course, fit: BoxFit.cover),
@@ -358,24 +398,40 @@ class _SmallCourse extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: pastelForCategory(course.category),
-                borderRadius: BorderRadius.circular(99),
+                borderRadius: BorderRadius.circular(AppRadius.tag),
               ),
               child: Text(
                 course.category,
                 style: AppTypography.caption.copyWith(
                   color: AppColors.accentDeep,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
                 ),
               ),
             ),
             const SizedBox(height: 6),
-            Text(course.title, style: AppTypography.headline),
-            const SizedBox(height: 8),
-            Text(course.durationLabel, style: AppTypography.footnote),
+            Text(
+              course.title,
+              style: AppTypography.headline.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              course.durationLabel,
+              style: AppTypography.caption.copyWith(
+                color: AppColors.accentDeep,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(course.description, style: AppTypography.subhead),
+            Text(
+              course.description,
+              style: AppTypography.subhead.copyWith(height: 1.45),
+            ),
           ],
         ),
       ),
@@ -386,7 +442,5 @@ class _SmallCourse extends StatelessWidget {
 BoxDecoration _cardDecoration({required double radius}) => BoxDecoration(
   color: AppColors.surface,
   borderRadius: BorderRadius.circular(radius),
-  boxShadow: const [
-    BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 7)),
-  ],
+  boxShadow: AppShadows.card,
 );

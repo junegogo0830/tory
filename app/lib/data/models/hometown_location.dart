@@ -11,6 +11,8 @@ class HometownLocation {
     this.imageUrl,
     this.imageSourceName,
     this.savedByCount,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -36,6 +38,12 @@ class HometownLocation {
   /// "다른 사람들이 둘러본 골목"(둘러보기 탭)에서만 채워지는, 이 장소를 찜한 사용자 수.
   final int? savedByCount;
 
+  /// 위치 기반 코스 추천/코스 커스텀 장소 추가에 쓰는 좌표. 없을 수 있다.
+  final double? latitude;
+  final double? longitude;
+
+  bool get hasCoordinates => latitude != null && longitude != null;
+
   /// 백엔드 `LocationResponse`(또는 이를 확장한 `PopularLocationResponse`) 스키마
   /// (snake_case)를 파싱한다.
   factory HometownLocation.fromJson(Map<String, dynamic> json) {
@@ -50,6 +58,8 @@ class HometownLocation {
       imageUrl: json['image_url'] as String?,
       imageSourceName: json['image_source_name'] as String?,
       savedByCount: json['saved_by_count'] as int?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 }

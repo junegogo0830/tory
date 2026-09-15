@@ -4,6 +4,8 @@ import '../api/api_client.dart';
 import '../models/community_post.dart';
 import '../models/neighbor.dart';
 import '../models/pending_photo.dart';
+import '../models/region_stats.dart';
+import '../models/school_search_result.dart';
 
 /// 커뮤니티(동네 게시판) 레포지토리. 백엔드 `/api/community`를 호출한다.
 class CommunityRepository {
@@ -62,11 +64,35 @@ class CommunityRepository {
     return response.data['region'] as String?;
   }
 
-  /// 로그인 필요. "내 동네"를 설정/변경한다.
+  /// 로그인 필요. "지금 보고 있는" 동네를 설정/전환한다 — 처음 가입하는
+  /// 지역이면 가입 이력([myRegions]에 나올 목록)에도 함께 남는다.
   Future<void> setHomeRegion(String region) async {
     await _apiClient.dio.patch(
       '/api/community/home-region',
       data: {'region': region},
+    );
+  }
+
+  /// 로그인 필요. 내가 가입한 모든 동네(최근 가입 순) — 커뮤니티 탭 지역 토글에 쓴다.
+  Future<List<String>> myRegions() async {
+    final response = await _apiClient.dio.get('/api/community/my-regions');
+    return (response.data as List).cast<String>();
+  }
+
+  /// 새 지역 가입 확인 화면에 보여줄 통계(이미 함께하는 이웃 수, 게시글 수).
+  Future<RegionStats> regionStats(String region) async {
+    final response = await _apiClient.dio.get(
+      '/api/community/region-stats',
+      queryParameters: {'region': region},
+    );
+    return RegionStats.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// 로그인 필요. 주민 게시판(중고거래) 글의 거래 상태를 바꾼다 — 작성자만 가능.
+  Future<void> updateTradeStatus(int postId, String tradeStatus) async {
+    await _apiClient.dio.patch(
+      '/api/community/posts/$postId/trade-status',
+      data: {'trade_status': tradeStatus},
     );
   }
 
@@ -93,7 +119,8 @@ class CommunityRepository {
   }
 
   /// 로그인 필요. 지역 게시판에 글을 올린다 — 사진은 게시판에 따라 선택(자유/주민/
-  /// 관광정보)이거나 사실상 필수(추억)고, 최대 5장까지 첨부할 수 있다.
+  /// 관광정보)이거나 사실상 필수(추억)고, 최대 5장까지 첨부할 수 있다. 타임캡슐
+  /// 게시판은 [revealAt](미래 날짜)이 필수다.
   Future<CommunityPost> createPost({
     required String region,
     required String board,
@@ -102,6 +129,11 @@ class CommunityRepository {
     String? locationId,
     String? caption,
     int? memoryYear,
+    DateTime? revealAt,
+    int? price,
+    String? tradeStatus,
+    bool isTrade = true,
+    String? contentBlocks,
   }) async {
     final formData = FormData.fromMap({
       'region': region,
@@ -110,6 +142,11 @@ class CommunityRepository {
       'location_id': ?locationId,
       if (caption != null && caption.isNotEmpty) 'caption': caption,
       'memory_year': ?memoryYear,
+      if (revealAt != null) 'reveal_at': revealAt.toUtc().toIso8601String(),
+      'price': ?price,
+      'trade_status': ?tradeStatus,
+      'is_trade': isTrade.toString(),
+      'content_blocks': ?contentBlocks,
       if (photos.isNotEmpty)
         'files': [
           for (final photo in photos)
@@ -167,16 +204,50 @@ class CommunityRepository {
   /// 이웃을 눌렀을 때 — 그 사람이 이 동네에 쓴 글(게시판 무관).
   Future<List<CommunityPost>> postsByUser(
     int authorId, {
-    required String region,
+    String? region,
     int limit = 20,
     int offset = 0,
   }) async {
     final response = await _apiClient.dio.get(
       '/api/community/users/$authorId/posts',
-      queryParameters: {'region': region, 'limit': limit, 'offset': offset},
+      queryParameters: {'region': ?region, 'limit': limit, 'offset': offset},
     );
     return (response.data as List)
         .map((json) => CommunityPost.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 장소별 추억 타임라인 — 연도순으로 한 번에 가져온다(더보기 없음).
+  Future<List<CommunityPost>> getTimeline(String region, {String board = 'memory'}) async {
+    final response = await _apiClient.dio.get(
+      '/api/community/posts/timeline',
+      queryParameters: {'region': region, 'board': board},
+    );
+    return (response.data as List)
+        .map((json) => CommunityPost.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 모교 검색 — 카카오 장소 검색으로 학교 이름을 찾는다.
+  Future<List<SchoolSearchResult>> searchSchools(String query) async {
+    final response = await _apiClient.dio.get(
+      '/api/community/schools',
+      queryParameters: {'query': query},
+    );
+    return (response.data as List)
+        .map((json) => SchoolSearchResult.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// "동창찾기" — home_region 개념이 없는 스코프(학교 등)에서, 그 지역에 실제로
+  /// 글을 쓴 사람들을 글 수 순으로 보여준다. 로그인 필요.
+  Future<List<Neighbor>> activeAuthors(String region) async {
+    final response = await _apiClient.dio.get(
+      '/api/community/active-authors',
+      queryParameters: {'region': region},
+    );
+    return (response.data as List)
+        .map((json) => Neighbor.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 }

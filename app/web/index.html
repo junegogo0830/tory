@@ -31,8 +31,31 @@
 
   <title>yetgil_app</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Flutter가 첫 프레임을 그리기 전까지(특히 초회 로드 시 몇 초) 빈 흰 화면이
+    보이던 걸 막는 정적 로딩 화면 — 앱 배경색(#F2EFEA) 위에 실제 로고
+    이미지(assets/logo/logo_icon.png, logo_wordmark.png)를 미리 보여준다.
+    Flutter가 asset을 "assets/<원본 경로>"로 번들링하므로 여기서도 같은
+    경로로 참조한다. #app-loading은 Flutter가 뜨면 그 위로 덮인다.
+  -->
+  <style>
+    html, body { background: #F2EFEA; }
+    #app-loading {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      background: #F2EFEA;
+    }
+    #app-loading .badge { width: 72px; height: 72px; border-radius: 17px; }
+    #app-loading .wordmark { height: 26px; }
+  </style>
 </head>
 <body>
+  <div id="app-loading">
+    <img class="badge" src="assets/assets/logo/logo_icon.png" alt="">
+    <img class="wordmark" src="assets/assets/logo/logo_wordmark.png" alt="옛길">
+  </div>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

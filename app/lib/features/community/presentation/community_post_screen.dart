@@ -12,6 +12,8 @@ import '../../../shared/widgets/photo_fallback.dart';
 import '../../../shared/widgets/report_dialog.dart';
 import '../../auth/data/auth_providers.dart';
 import '../data/community_providers.dart';
+import '../domain/community_board.dart';
+import 'widgets/trade_status_chip.dart';
 
 class CommunityPostScreen extends ConsumerStatefulWidget {
   const CommunityPostScreen({super.key, required this.postId});
@@ -162,6 +164,10 @@ class _CommunityPostScreenState extends ConsumerState<CommunityPostScreen> {
     }
   }
 
+  Future<void> _changeTradeStatus(int postId, String status) async {
+    await _act(() => ref.read(communityRepositoryProvider).updateTradeStatus(postId, status));
+  }
+
   Future<void> _reportPost(int postId) async {
     final reason = await showReportDialog(context);
     if (reason == null || !mounted) return;
@@ -304,16 +310,40 @@ class _CommunityPostScreenState extends ConsumerState<CommunityPostScreen> {
                             '${post.memoryYear}년의 기억',
                             style: AppTypography.footnote,
                           ),
-                        if (post.photoUrls.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: _PhotoGallery(photoUrls: post.photoUrls),
+                        if (communityBoardById(post.board).isTradeBoard && post.tradeStatus != null) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Text(
+                                post.price != null ? '${formatPrice(post.price!)}원' : '나눔',
+                                style: AppTypography.title.copyWith(fontSize: 20, color: AppColors.accentDeep),
+                              ),
+                              const SizedBox(width: 10),
+                              if (post.tradeStatus != null)
+                                data?['is_mine'] == true
+                                    ? TradeStatusDropdown(
+                                        status: post.tradeStatus!,
+                                        onChanged: _busy ? null : (status) => _changeTradeStatus(post.id, status),
+                                      )
+                                    : TradeStatusChip(status: post.tradeStatus!),
+                            ],
                           ),
-                        const SizedBox(height: 12),
-                        SelectableText(
-                          post.caption ?? '',
-                          style: AppTypography.body,
-                        ),
+                        ],
+                        if (post.contentBlocks != null && post.contentBlocks!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _ContentBlocksView(blocks: post.contentBlocks!),
+                        ] else ...[
+                          if (post.photoUrls.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: _PhotoGallery(photoUrls: post.photoUrls),
+                            ),
+                          const SizedBox(height: 12),
+                          SelectableText(
+                            post.caption ?? '',
+                            style: AppTypography.body,
+                          ),
+                        ],
                         if (post.locationId != null)
                           TextButton.icon(
                             onPressed: () =>
@@ -511,6 +541,37 @@ class _CommentRow extends StatelessWidget {
   }
 }
 
+/// 블로그 스타일로 쓴 글의 본문 — 텍스트/사진 블록을 작성한 순서 그대로 세로로 나열한다.
+class _ContentBlocksView extends StatelessWidget {
+  const _ContentBlocksView({required this.blocks});
+
+  final List<ContentBlock> blocks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final block in blocks) ...[
+          if (block.type == 'image' && block.imageUrl != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: AppNetworkImage(
+                imageUrl: block.imageUrl!,
+                fit: BoxFit.cover,
+                placeholder: (_, _) => const PhotoFallback(),
+                errorWidget: (_, _, _) => const PhotoFallback(),
+              ),
+            )
+          else if (block.type == 'text' && (block.text ?? '').isNotEmpty)
+            SelectableText(block.text!, style: AppTypography.body),
+          const SizedBox(height: 14),
+        ],
+      ],
+    );
+  }
+}
+
 /// 게시글 사진 — 여러 장이면 좌우로 넘겨보는 갤러리 + 페이지 점 표시.
 class _PhotoGallery extends StatefulWidget {
   const _PhotoGallery({required this.photoUrls});
@@ -607,7 +668,7 @@ class _EditPostState extends State<_EditPost> {
           ),
           TextField(
             controller: _body,
-            maxLength: 500,
+            maxLength: 2000,
             minLines: 3,
             maxLines: 8,
             decoration: const InputDecoration(labelText: '내용'),

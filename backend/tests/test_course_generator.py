@@ -18,7 +18,7 @@ def _location(**overrides) -> LocationResponse:
 def _candidate(title: str, **overrides) -> dict:
     base = {
         "title": title, "category": "관광지", "distance_m": 300, "addr": "어딘가",
-        "latitude": 37.1, "longitude": 127.1,
+        "latitude": 37.1, "longitude": 127.1, "image_url": None,
     }
     base.update(overrides)
     return base
@@ -33,7 +33,10 @@ async def test_generate_course_returns_none_without_coordinates() -> None:
 
 def test_parse_course_filters_hallucinated_stops() -> None:
     service = CourseGeneratorService()
-    candidates = [_candidate("실제공원"), _candidate("실제카페", category="음식점", distance_m=500)]
+    candidates = [
+        _candidate("실제공원", image_url="https://img/park.jpg"),
+        _candidate("실제카페", category="음식점", distance_m=500, addr="카페주소"),
+    ]
     text = (
         '{"title": "가을 산책", "description": "설명", "duration_label": "약 2시간", '
         '"category": "산책", "sentiment_score": 0.8, '
@@ -44,6 +47,11 @@ def test_parse_course_filters_hallucinated_stops() -> None:
     assert [s.name for s in course.stops] == ["실제공원", "실제카페"]
     assert course.stops[0].latitude == 37.1
     assert course.stops[0].longitude == 127.1
+    # 정류지 카드가 목록에서 카테고리·주소·사진을 바로 보여줄 수 있게, 후보의
+    # 정보를 그대로 넘겨받는다(예전엔 이름/좌표만 넘기고 나머지를 버렸다).
+    assert course.stops[0].image_url == "https://img/park.jpg"
+    assert course.stops[1].category == "음식점"
+    assert course.stops[1].address == "카페주소"
     assert course.id == "llm-tour-999-가을"
 
 

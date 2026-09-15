@@ -199,13 +199,35 @@ class KakaoLocalService:
         await cache_set(cache_key, json.dumps(results), ex=_CACHE_TTL_SECONDS)
         return results
 
-    async def _search_places_multi(self, path: str, query: str, limit: int) -> list[dict]:
+    async def search_schools(self, query: str, limit: int = 8) -> list[dict]:
+        """학교 이름 검색 — 카테고리 코드 SC4(학교)로 필터링해 다른 장소가 섞이지 않게 한다."""
+        if not settings.kakao_rest_api_key:
+            return []
+
+        cache_key = f"kakaoschools:{query}:{limit}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return json.loads(cached)
+
+        results = await self._search_places_multi(
+            "/keyword.json", query, limit, category_group_code="SC4"
+        )
+
+        await cache_set(cache_key, json.dumps(results), ex=_CACHE_TTL_SECONDS)
+        return results
+
+    async def _search_places_multi(
+        self, path: str, query: str, limit: int, *, category_group_code: str | None = None
+    ) -> list[dict]:
+        params: dict[str, str | int] = {"query": query, "size": limit}
+        if category_group_code:
+            params["category_group_code"] = category_group_code
         try:
             async with httpx.AsyncClient(timeout=5) as client:
                 response = await client.get(
                     f"{self._BASE_URL}{path}",
                     headers={"Authorization": f"KakaoAK {settings.kakao_rest_api_key}"},
-                    params={"query": query, "size": limit},
+                    params=params,
                 )
                 response.raise_for_status()
                 body = response.json()

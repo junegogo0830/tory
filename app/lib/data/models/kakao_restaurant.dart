@@ -13,6 +13,8 @@ class KakaoRestaurant {
     this.imageUrl,
     this.phone,
     this.placeUrl,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -23,6 +25,10 @@ class KakaoRestaurant {
   final String? imageUrl;
   final String? phone;
   final String? placeUrl;
+  final double? latitude;
+  final double? longitude;
+
+  bool get hasCoordinates => latitude != null && longitude != null;
 
   factory KakaoRestaurant.fromJson(Map<String, dynamic> json) {
     return KakaoRestaurant(
@@ -34,6 +40,8 @@ class KakaoRestaurant {
       imageUrl: json['image_url'] as String?,
       phone: json['phone'] as String?,
       placeUrl: json['place_url'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 }

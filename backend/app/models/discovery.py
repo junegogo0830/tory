@@ -42,3 +42,5 @@ class KakaoRestaurantResponse(BaseModel):
     image_url: str | None = None
     phone: str | None = None
     place_url: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None

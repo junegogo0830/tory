@@ -51,8 +51,36 @@ class ProfileRepository {
         .toList();
   }
 
+  /// 첫 로그인 온보딩 완료(또는 건너뛰기) 처리 — 호출하면 다음부터 온보딩
+  /// 화면이 다시 뜨지 않는다. 거주지/살았던 곳은 각각 community의
+  /// setHomeRegion, 이 클래스의 saveLocation을 따로 호출해서 저장한다.
+  Future<Profile> completeOnboarding({String? ageGroup}) async {
+    final response = await _apiClient.dio.patch(
+      '/api/profile/onboarding',
+      data: {'age_group': ageGroup},
+    );
+    return Profile.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// 자체 회원가입(아이디+비밀번호) 계정만 가능. 카카오 계정으로 호출하면 422.
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    await _apiClient.dio.patch(
+      '/api/profile/password',
+      data: {'current_password': currentPassword, 'new_password': newPassword},
+    );
+  }
+
   Future<void> updateNickname(String nickname) async {
     await _apiClient.dio.patch('/api/profile/nickname', data: {'nickname': nickname});
+  }
+
+  /// "정보 수정" — 성별/이름/전화번호(전부 선택, 보낸 필드만 바뀐다).
+  Future<Profile> updateInfo({String? gender, String? fullName, String? phoneNumber}) async {
+    final response = await _apiClient.dio.patch(
+      '/api/profile/info',
+      data: {'gender': gender, 'full_name': fullName, 'phone_number': phoneNumber},
+    );
+    return Profile.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<void> updatePhoto({

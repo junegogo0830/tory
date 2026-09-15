@@ -1,15 +1,24 @@
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db.models import User
 from ...db.postgres import get_db_session
+from ...models.auth import PasswordChangeRequest
 from ...models.course import CourseResponse
-from ...models.profile import MyMemoryResponse, NicknameUpdateRequest, ProfileResponse
+from ...models.profile import (
+    MyMemoryResponse,
+    NicknameUpdateRequest,
+    OnboardingRequest,
+    ProfileInfoUpdateRequest,
+    ProfileResponse,
+)
+from ...services.auth import AuthService
 from ...services.profile import ProfileService
 from ..deps import get_current_user
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 _profile_service = ProfileService()
+_auth_service = AuthService()
 
 
 @router.get("", response_model=ProfileResponse)
@@ -60,6 +69,19 @@ async def get_my_courses(
     return await _profile_service.get_my_courses(db, user, limit=limit, offset=offset)
 
 
+@router.patch("/onboarding", response_model=ProfileResponse)
+async def complete_onboarding(
+    body: OnboardingRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ProfileResponse:
+    """완료든 건너뛰기든 이 엔드포인트를 호출하면 이 사용자에게 다시 온보딩
+    화면이 뜨지 않는다. 거주지/살았던 곳은 이미 있는 community/saved-locations
+    엔드포인트를 프론트가 따로 호출한다."""
+    user = await _profile_service.complete_onboarding(db, user, body.age_group)
+    return await _profile_service.get_profile(db, user)
+
+
 @router.patch("/nickname", response_model=ProfileResponse)
 async def update_nickname(
     body: NicknameUpdateRequest,
@@ -67,6 +89,18 @@ async def update_nickname(
     db: AsyncSession = Depends(get_db_session),
 ) -> ProfileResponse:
     user = await _profile_service.update_nickname(db, user, body.nickname)
+    return await _profile_service.get_profile(db, user)
+
+
+@router.patch("/info", response_model=ProfileResponse)
+async def update_info(
+    body: ProfileInfoUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ProfileResponse:
+    """"정보 수정" 화면 — 성별/이름/전화번호. 나이·사는 곳은 기존 onboarding/
+    community 엔드포인트를, 모교·살았던 곳은 /api/memory/attributes를 그대로 쓴다."""
+    user = await _profile_service.update_info(db, user, body)
     return await _profile_service.get_profile(db, user)
 
 
@@ -78,6 +112,19 @@ async def update_photo(
 ) -> ProfileResponse:
     user = await _profile_service.update_photo(db, user, file)
     return await _profile_service.get_profile(db, user)
+
+
+@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: PasswordChangeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """자체 회원가입(아이디+비밀번호) 계정만 가능 — 카카오 로그인 계정은 422."""
+    try:
+        await _auth_service.change_password(db, user, body.current_password, body.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)

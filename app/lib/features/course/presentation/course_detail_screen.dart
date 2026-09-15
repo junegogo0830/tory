@@ -11,6 +11,7 @@ import '../../../data/models/tour_course.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/photo_fallback.dart';
+import '../../../shared/widgets/save_course_button.dart';
 import '../../auth/data/auth_providers.dart';
 import '../../home/data/home_providers.dart';
 import '../../profile/data/profile_providers.dart';
@@ -27,7 +28,10 @@ class CourseDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.paper,
-      appBar: AppBar(title: const Text('코스 상세')),
+      appBar: AppBar(
+        title: const Text('코스 상세'),
+        actions: [SaveCourseButton(courseType: 'generated', courseId: courseId)],
+      ),
       body: courseAsync.when(
         data: (course) {
           if (course == null) {
@@ -93,12 +97,15 @@ class CourseDetailScreen extends ConsumerWidget {
                       Text('방문 순서', style: AppTypography.headline),
                       const SizedBox(height: 4),
                       Text(
-                        '정류지를 눌러 카카오맵으로 길찾기를 시작해요',
+                        '정류지 옆 길찾기를 누르면 카카오맵으로 바로 이동해요',
                         style: AppTypography.footnote,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       for (var i = 0; i < course.stops.length; i++)
-                        _StopRow(number: i + 1, stop: course.stops[i]),
+                        _StopTimelineRow(
+                          stop: course.stops[i],
+                          showLine: i < course.stops.length - 1,
+                        ),
                     ],
                   ),
                 ),
@@ -166,61 +173,135 @@ class _Badge extends StatelessWidget {
   }
 }
 
-class _StopRow extends StatelessWidget {
-  const _StopRow({required this.number, required this.stop});
+/// 정류지 한 칸 — 왼쪽에 사진 카드, 그 옆에 이어지는 세로선+원 마커, 오른쪽에
+/// 이름/주소/머무는 시간과 길찾기. 이전엔 사진 없이 번호+글자만 나열해서
+/// "단조롭다"는 피드백이 있었다 — 사진(TourAPI 보강, backend recommendation.py
+/// _enrich_course 참고)과 로드맵 선으로 실제 코스를 따라 걷는 느낌을 준다.
+class _StopTimelineRow extends StatelessWidget {
+  const _StopTimelineRow({required this.stop, required this.showLine});
 
-  final int number;
   final CourseStop stop;
+  final bool showLine;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppColors.accentTint,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              '$number',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.accentDeep,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(stop.name, style: AppTypography.body),
-                if (stop.address.isNotEmpty)
-                  Text(stop.address, style: AppTypography.caption),
-                if (stop.category.isNotEmpty)
-                  Text(
-                    '${stop.category} · 약 ${stop.stayMinutes}분 머물기',
-                    style: AppTypography.caption,
+      padding: const EdgeInsets.only(bottom: 4),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(flex: 11, child: _StopPhotoCard(stop: stop)),
+            SizedBox(
+              width: 22,
+              child: Column(
+                children: [
+                  Container(
+                    width: 13,
+                    height: 13,
+                    margin: const EdgeInsets.only(top: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.accent, width: 2),
+                    ),
                   ),
-              ],
-            ),
-          ),
-          if (stop.hasCoordinates)
-            TextButton.icon(
-              onPressed: () => openKakaoMapDirections(
-                name: stop.name,
-                latitude: stop.latitude!,
-                longitude: stop.longitude!,
+                  if (showLine)
+                    Expanded(
+                      child: Container(width: 2, color: AppColors.hairline),
+                    ),
+                ],
               ),
-              icon: const Icon(Icons.directions, size: 18),
-              label: const Text('길찾기'),
             ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 9,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stop.name,
+                      style: AppTypography.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (stop.category.isNotEmpty ||
+                        stop.address.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        stop.category.isNotEmpty
+                            ? '${stop.category} · 약 ${stop.stayMinutes}분'
+                            : stop.address,
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.inkTertiary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (stop.hasCoordinates) ...[
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () => openKakaoMapDirections(
+                          name: stop.name,
+                          latitude: stop.latitude!,
+                          longitude: stop.longitude!,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.directions,
+                              size: 15,
+                              color: AppColors.accentDeep,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '길찾기',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.accentDeep,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StopPhotoCard extends StatelessWidget {
+  const _StopPhotoCard({required this.stop});
+
+  final CourseStop stop;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.tile),
+      child: SizedBox(
+        height: 84,
+        width: double.infinity,
+        child: stop.imageUrl == null
+            ? const PhotoFallback(icon: Icons.route_outlined)
+            : AppNetworkImage(
+                imageUrl: stop.imageUrl!,
+                fit: BoxFit.cover,
+                placeholder: (_, _) =>
+                    const PhotoFallback(icon: Icons.route_outlined),
+                errorWidget: (_, _, _) =>
+                    const PhotoFallback(icon: Icons.route_outlined),
+              ),
       ),
     );
   }
@@ -234,7 +315,8 @@ class _CompleteCourseButton extends ConsumerStatefulWidget {
   final String courseId;
 
   @override
-  ConsumerState<_CompleteCourseButton> createState() => _CompleteCourseButtonState();
+  ConsumerState<_CompleteCourseButton> createState() =>
+      _CompleteCourseButtonState();
 }
 
 class _CompleteCourseButtonState extends ConsumerState<_CompleteCourseButton> {
@@ -243,9 +325,9 @@ class _CompleteCourseButtonState extends ConsumerState<_CompleteCourseButton> {
 
   Future<void> _complete() async {
     if (ref.read(authStateProvider).value != true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인하면 완주 기록을 남길 수 있어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인하면 완주 기록을 남길 수 있어요')));
       return;
     }
     setState(() => _busy = true);
@@ -260,9 +342,9 @@ class _CompleteCourseButtonState extends ConsumerState<_CompleteCourseButton> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('기록하지 못했어요. 다시 시도해주세요.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('기록하지 못했어요. 다시 시도해주세요.')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

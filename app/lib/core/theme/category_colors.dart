@@ -37,6 +37,36 @@ Color pastelForFoodCategory(String category) {
   return AppColors.accentTint;
 }
 
+/// 카카오맵 맛집 카테고리를 훨씬 더 세분화한 이모지로 매핑한다. [iconForFoodCategory]가
+/// 목록 화면의 배지용(카테고리 4~5종 단순 아이콘)이라면, 이건 홈 화면 "카카오맵
+/// 맛집 추천" 카드처럼 한 식당을 크게 보여줄 때 음식 느낌이 바로 오도록 세부
+/// 종류별로 다른 이모지를 쓴다.
+String emojiForFoodCategory(String category) {
+  if (category.contains('치킨')) return '🍗';
+  if (category.contains('족발') || category.contains('보쌈')) return '🍖';
+  if (category.contains('고기') || category.contains('구이') || category.contains('갈비')) {
+    return '🥩';
+  }
+  if (category.contains('국밥') || category.contains('찌개') || category.contains('탕') || category.contains('전골')) {
+    return '🍲';
+  }
+  if (category.contains('한식')) return '🍚';
+  if (category.contains('분식')) return '🍢';
+  if (category.contains('초밥') || category.contains('스시')) return '🍣';
+  if (category.contains('라멘') || category.contains('우동')) return '🍜';
+  if (category.contains('돈까스')) return '🍱';
+  if (category.contains('일식')) return '🍙';
+  if (category.contains('중식')) return '🥡';
+  if (category.contains('피자')) return '🍕';
+  if (category.contains('패스트푸드') || category.contains('버거')) return '🍔';
+  if (category.contains('파스타') || category.contains('양식')) return '🍝';
+  if (category.contains('해산물') || category.contains('회') || category.contains('조개')) return '🦐';
+  if (category.contains('술') || category.contains('호프') || category.contains('포차')) return '🍺';
+  if (category.contains('베이커리') || category.contains('디저트')) return '🍰';
+  if (category.contains('카페')) return '☕';
+  return '🍽️';
+}
+
 /// [pastelForFoodCategory]와 짝을 이루는 아이콘.
 IconData iconForFoodCategory(String category) {
   if (category.contains('한식') || category.contains('고기') || category.contains('국밥')) {

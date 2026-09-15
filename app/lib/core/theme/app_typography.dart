@@ -19,14 +19,25 @@ abstract final class AppTypography {
   static TextStyle get title => TextStyle(
     fontFamily: _fontFamily,
     fontSize: 20,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
     color: AppColors.ink,
     height: 1.25,
   );
 
+  /// 홈/탭 화면의 섹션 제목 ("우리 동네 최신 이야기" 등). 페이지 제목([title])보다
+  /// 한 단계 작고, 본문 카드 제목([headline])보다는 확실히 무겁게.
+  static TextStyle get sectionTitle => TextStyle(
+    fontFamily: _fontFamily,
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+    color: AppColors.ink,
+    height: 1.25,
+    letterSpacing: -0.2,
+  );
+
   static TextStyle get headline => TextStyle(
     fontFamily: _fontFamily,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: FontWeight.w600,
     color: AppColors.ink,
     height: 1.3,
@@ -34,7 +45,7 @@ abstract final class AppTypography {
 
   static TextStyle get body => TextStyle(
     fontFamily: _fontFamily,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: FontWeight.w400,
     color: AppColors.ink,
     height: 1.4,
@@ -58,7 +69,7 @@ abstract final class AppTypography {
 
   static TextStyle get caption => TextStyle(
     fontFamily: _fontFamily,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.inkTertiary,
     height: 1.3,

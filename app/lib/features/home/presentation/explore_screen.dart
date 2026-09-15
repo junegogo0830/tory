@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../data/repositories/repository_providers.dart';
@@ -43,33 +45,38 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     : locations.where((l) => l.region.contains(regionKeyword)).toList();
 
                 return ListView(
-                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 36),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
                   children: [
                     const _Header(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     SizedBox(
-                      height: 48,
+                      height: 40,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _regions.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (context, index) => ChoiceChip(
-                          label: Text(_regions[index]),
-                          selected: selectedRegion == index,
-                          onSelected: (_) => setState(() => selectedRegion = index),
-                          selectedColor: AppColors.accent,
-                          backgroundColor: AppColors.surface,
-                          side: BorderSide.none,
-                          showCheckmark: false,
-                          labelStyle: AppTypography.body.copyWith(
-                            color: selectedRegion == index ? Colors.white : AppColors.ink,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-                        ),
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final selected = selectedRegion == index;
+                          return ChoiceChip(
+                            label: Text(_regions[index]),
+                            selected: selected,
+                            onSelected: (_) => setState(() => selectedRegion = index),
+                            selectedColor: AppColors.accent,
+                            backgroundColor: AppColors.surface,
+                            side: BorderSide(color: selected ? AppColors.accent : AppColors.hairline),
+                            shape: const StadiumBorder(),
+                            showCheckmark: false,
+                            labelStyle: AppTypography.footnote.copyWith(
+                              color: selected ? Colors.white : AppColors.ink,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            visualDensity: VisualDensity.compact,
+                          );
+                        },
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 26),
                     if (filtered.isEmpty)
                       const EmptyState(
                         icon: Icons.explore_off_outlined,
@@ -79,12 +86,12 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     else ...[
                       Row(
                         children: [
-                          const Icon(Icons.groups_outlined, color: AppColors.accentDeep, size: 27),
-                          const SizedBox(width: 8),
-                          Text('다른 사람들이 둘러본 골목', style: AppTypography.title),
+                          const Icon(Icons.groups_outlined, color: AppColors.accentDeep, size: 20),
+                          const SizedBox(width: 7),
+                          Text('다른 사람들이 둘러본 골목', style: AppTypography.sectionTitle),
                         ],
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       for (var i = 0; i < filtered.length; i++) ...[
                         _PlaceCard(location: filtered[i]),
                         const SizedBox(height: 16),
@@ -113,9 +120,9 @@ class _Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('둘러보기', style: AppTypography.title),
+        Text('둘러보기', style: AppTypography.title.copyWith(fontSize: 22)),
         const SizedBox(height: 4),
-        Text('추억이 머무는 동네를 둘러보세요', style: AppTypography.body.copyWith(color: AppColors.inkSecondary)),
+        Text('추억이 머무는 동네를 둘러보세요', style: AppTypography.subhead),
       ],
     );
   }
@@ -131,10 +138,8 @@ class _PlaceCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 18, offset: Offset(0, 7)),
-        ],
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: AppShadows.card,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -213,19 +218,26 @@ class _PlaceDetail extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text(location.name, style: AppTypography.title.copyWith(fontSize: 23))),
+              Expanded(child: Text(location.name, style: AppTypography.title.copyWith(fontSize: 21, letterSpacing: -0.3))),
               InkWell(
                 onTap: () => _toggleSave(context, ref, isLoggedIn, isSaved),
-                child: Icon(
-                  isSaved ? Icons.bookmark : Icons.bookmark_border,
-                  color: AppColors.accentDeep,
-                  size: 26,
+                borderRadius: BorderRadius.circular(99),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    color: AppColors.accentDeep,
+                    size: 24,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(location.region, style: AppTypography.subhead.copyWith(color: AppColors.accentDeep)),
+          const SizedBox(height: 3),
+          Text(
+            location.region,
+            style: AppTypography.footnote.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w500),
+          ),
           if (location.savedByCount != null) ...[
             const SizedBox(height: 4),
             Row(

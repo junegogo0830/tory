@@ -82,6 +82,41 @@ async def test_my_courses_roundtrip(db):
 
 
 @pytest.mark.asyncio
+async def test_complete_onboarding_sets_age_group_and_flag(db):
+    profile = ProfileService()
+    me = User(kakao_id='onboarding-me', nickname='나')
+    db.add(me)
+    await db.commit()
+
+    before = await profile.get_profile(db, me)
+    assert before.onboarding_completed is False
+    assert before.age_group is None
+
+    await profile.complete_onboarding(db, me, '30대')
+    after = await profile.get_profile(db, me)
+    assert after.onboarding_completed is True
+    assert after.age_group == '30대'
+
+    # 건너뛰기(age_group=None)로 다시 불러도 이미 있던 연령대는 안 지워진다.
+    await profile.complete_onboarding(db, me, None)
+    still = await profile.get_profile(db, me)
+    assert still.age_group == '30대'
+    assert still.onboarding_completed is True
+
+
+@pytest.mark.asyncio
+async def test_has_password_reflects_account_type(db):
+    profile = ProfileService()
+    kakao_user = User(kakao_id='haspw-kakao', nickname='카카오')
+    password_user = User(username='haspwuser', password_hash='hashed', nickname='haspwuser')
+    db.add_all([kakao_user, password_user])
+    await db.commit()
+
+    assert (await profile.get_profile(db, kakao_user)).has_password is False
+    assert (await profile.get_profile(db, password_user)).has_password is True
+
+
+@pytest.mark.asyncio
 async def test_update_nickname_and_photo(db):
     profile = ProfileService()
     me = User(kakao_id='edit-me', nickname='옛이름')

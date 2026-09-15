@@ -24,6 +24,9 @@ class CourseStop(BaseModel):
     category: str = ''
     address: str = ''
     stay_minutes: int = 30
+    # TourApiService.find_place_info로 보강된 정류지 사진 — 없으면 프론트가
+    # 자체 폴백 아이콘을 보여준다.
+    image_url: str | None = None
 
 
 class CourseResponse(BaseModel):

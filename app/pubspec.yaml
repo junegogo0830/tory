@@ -40,6 +40,9 @@ dependencies:
   cached_network_image: ^3.4.1
   webview_flutter: ^4.14.0
   kakao_flutter_sdk_user: ^2.0.1
+  # kakao_flutter_sdk_user의 전이 의존성이지만, 웹 로그인(AuthCodeClient.authorize)은
+  # 이 패키지의 API를 직접 쓴다 — auth_repository.dart 참고.
+  kakao_flutter_sdk_auth: ^2.0.1
   flutter_secure_storage: ^11.0.0
   url_launcher: ^6.3.2
   image_picker: ^1.2.0
@@ -71,7 +74,19 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/logo/
+    # 실제 앱에서 쓰는 이미지만 개별로 등록한다 — assets/logo/ 폴더 전체를
+    # 등록하면 크롭 전 원본(logo.png)과 README까지 번들에 딸려 들어간다.
+    - assets/logo/logo_icon.png
+    - assets/logo/logo_wordmark.png
+    - assets/logo/login.png
+    - assets/logo/community.png
+    - assets/logo/nearby_attractions.png
+    - assets/highlights/gangneung_namsan.jpg
+    - assets/highlights/gogunsan.jpg
+    - assets/highlights/gwanmunsa.jpg
+    - assets/highlights/gwaneumsa_busan.jpg
+    - assets/highlights/seokcheonsa.jpg
+    - assets/highlights/yonghwasa.jpg
 
   fonts:
     - family: Pretendard

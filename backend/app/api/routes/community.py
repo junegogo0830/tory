@@ -1,3 +1,5 @@
+import datetime
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,9 @@ from ...models.community import (
     NeighborResponse,
     ReportRequest,
     RegionByCoordsResponse,
+    RegionStatsResponse,
+    SchoolSearchResult,
+    TradeStatusUpdateRequest,
 )
 from ...services.community import CommunityService
 from ..deps import get_current_user, get_optional_user
@@ -35,6 +40,20 @@ async def set_home_region(
 ) -> HomeRegionResponse:
     await _community_service.set_home_region(db, user, body.region)
     return HomeRegionResponse(region=user.home_region)
+
+
+@router.get("/my-regions", response_model=list[str])
+async def my_regions(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)
+) -> list[str]:
+    """내가 가입한 모든 동네 — 커뮤니티 탭 지역 토글에 쓴다."""
+    return await _community_service.list_my_regions(db, user)
+
+
+@router.get("/region-stats", response_model=RegionStatsResponse)
+async def region_stats(region: str, db: AsyncSession = Depends(get_db_session)) -> RegionStatsResponse:
+    """새 지역 가입 확인 화면에 "이미 N명이 함께하고 있어요"를 보여주기 위한 통계."""
+    return await _community_service.region_stats(db, region)
 
 
 def _validate_board(board: str) -> None:
@@ -72,6 +91,11 @@ async def create_post(
     location_id: str | None = Form(None),
     caption: str | None = Form(None),
     memory_year: int | None = Form(None),
+    reveal_at: datetime.datetime | None = Form(None),
+    price: int | None = Form(None),
+    trade_status: str | None = Form(None),
+    is_trade: bool = Form(True),
+    content_blocks: str | None = Form(None),
     files: list[UploadFile] = File(default_factory=list),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -86,8 +110,26 @@ async def create_post(
         title=title,
         location_id=location_id,
         caption=caption,
+        reveal_at=reveal_at,
         memory_year=memory_year,
+        price=price,
+        trade_status=trade_status,
+        is_trade=is_trade,
+        content_blocks=content_blocks,
     )
+
+
+@router.get('/posts/timeline', response_model=list[CommunityPostResponse])
+async def timeline(
+    region: str,
+    board: str = "memory",
+    user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[CommunityPostResponse]:
+    # /posts/{post_id}보다 먼저 등록해야 한다 — 안 그러면 "timeline"이 post_id로
+    # 매칭 시도되다 422로 막혀버린다(라우트는 등록 순서대로 매칭됨).
+    _validate_board(board)
+    return await _community_service.timeline(db, region=region, board=board, viewer_id=user.id if user else None)
 
 
 @router.get('/posts/{post_id}', response_model=PostDetailResponse)
@@ -98,6 +140,13 @@ async def detail(post_id: int, user=Depends(get_optional_user), db=Depends(get_d
 @router.patch('/posts/{post_id}', response_model=PostDetailResponse)
 async def update_post(post_id: int, body: PostUpdateRequest, user=Depends(get_current_user), db=Depends(get_db_session)):
     return await _community_service.update(db, post_id, user, body)
+
+
+@router.patch('/posts/{post_id}/trade-status', response_model=PostDetailResponse)
+async def update_trade_status(
+    post_id: int, body: TradeStatusUpdateRequest, user=Depends(get_current_user), db=Depends(get_db_session)
+):
+    return await _community_service.update_trade_status(db, post_id, user, body.trade_status)
 
 
 @router.delete('/posts/{post_id}', status_code=204)
@@ -163,7 +212,7 @@ async def neighbors(region: str, user: User = Depends(get_current_user), db: Asy
 @router.get('/users/{author_id}/posts', response_model=list[CommunityPostResponse])
 async def posts_by_user(
     author_id: int,
-    region: str,
+    region: str | None = None,
     limit: int = Query(20, ge=1, le=50),
     offset: int = Query(0, ge=0),
     user: User | None = Depends(get_optional_user),
@@ -172,3 +221,15 @@ async def posts_by_user(
     return await _community_service.list_posts_by_user(
         db, author_id=author_id, region=region, limit=limit, offset=offset, viewer_id=user.id if user else None
     )
+
+
+@router.get('/schools', response_model=list[SchoolSearchResult])
+async def search_schools(query: str = Query(..., min_length=1)) -> list[SchoolSearchResult]:
+    return await _community_service.search_schools(query)
+
+
+@router.get('/active-authors', response_model=list[NeighborResponse])
+async def active_authors(
+    region: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)
+) -> list[NeighborResponse]:
+    return await _community_service.active_authors(db, user, region=region)

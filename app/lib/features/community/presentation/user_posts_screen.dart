@@ -12,12 +12,13 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 
 /// 친구찾기에서 이웃을 눌렀을 때 — 그 사람이 이 동네에 쓴 글(게시판 무관) 목록.
+/// region이 null이면(프로필 "등록한 게시글") 지역 무관 내가 쓴 글 전체를 보여준다.
 class UserPostsScreen extends ConsumerStatefulWidget {
-  const UserPostsScreen({super.key, required this.authorId, required this.authorNickname, required this.region});
+  const UserPostsScreen({super.key, required this.authorId, required this.authorNickname, this.region});
 
   final int authorId;
   final String authorNickname;
-  final String region;
+  final String? region;
 
   @override
   ConsumerState<UserPostsScreen> createState() => _UserPostsScreenState();
@@ -55,7 +56,7 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.paper,
-      appBar: AppBar(title: Text('${widget.authorNickname}님의 글')),
+      appBar: AppBar(title: Text(widget.region == null ? '내가 쓴 글' : '${widget.authorNickname}님의 글')),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -64,13 +65,13 @@ class _UserPostsScreenState extends ConsumerState<UserPostsScreen> {
               : _error != null
                   ? Center(child: Text(_error!, style: AppTypography.subhead))
                   : _posts.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Padding(
-                            padding: EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(24),
                             child: EmptyState(
                               icon: Icons.article_outlined,
-                              title: '아직 이 동네에 쓴 글이 없어요',
-                              message: '다른 동네에 글을 남겼을 수도 있어요.',
+                              title: widget.region == null ? '아직 쓴 글이 없어요' : '아직 이 동네에 쓴 글이 없어요',
+                              message: widget.region == null ? '커뮤니티에 첫 글을 남겨보세요.' : '다른 동네에 글을 남겼을 수도 있어요.',
                             ),
                           ),
                         )

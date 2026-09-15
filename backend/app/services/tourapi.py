@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import json
 import logging
+from urllib.parse import urlencode
 
 import httpx
 
@@ -91,6 +92,21 @@ class TourApiService:
     def __init__(self, kakao_local_service: KakaoLocalService | None = None) -> None:
         self._base_url = "https://apis.data.go.kr/B551011/KorService2"
         self._kakao_local_service = kakao_local_service or KakaoLocalService()
+
+    async def _get(self, path: str, **params: object) -> dict:
+        """data.go.kr이 발급하는 TOUR_API_KEY는 이미 퍼센트 인코딩된 값이라,
+        httpx의 `params=` kwarg에 그대로 넘기면 httpx가 그 값을 한 번 더
+        인코딩해(%2F → %252F) SERVICE_KEY_IS_NOT_REGISTERED_ERROR가 난다.
+        serviceKey는 URL에 직접(raw) 붙이고 나머지만 urlencode한다 — 참고로
+        완성된 쿼리스트링이 있는 URL에 httpx `params=`를 같이 넘기면 병합이
+        아니라 그 쿼리스트링을 통째로 덮어써버리는 것도 확인했다.
+        """
+        query = urlencode(params)
+        url = f"{self._base_url}/{path}?serviceKey={settings.tour_api_key}&{query}"
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
 
     async def resolve_location(self, query: str) -> LocationResponse | None:
         """자유 입력(주소/학교/아파트 텍스트)에 대응하는 장소를 찾는다.
@@ -227,25 +243,19 @@ class TourApiService:
             return []
 
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(
-                    f"{self._base_url}/searchKeyword2",
-                    params={
-                        "serviceKey": settings.tour_api_key,
-                        "keyword": query,
-                        "MobileOS": "ETC",
-                        "MobileApp": "Yetgil",
-                        "_type": "json",
-                        "numOfRows": num_rows,
-                        # contentTypeId으로 좁히고 사진 있는 것부터(arrange=O) 정렬한다.
-                        # 필터 없이 검색하면 같은 지명의 엉뚱한 업종이 뒤섞여 나온다
-                        # (예: "해운대" 검색 시 관광지 대신 다이소·안경점이 먼저 나오는 걸 확인함).
-                        "contentTypeId": content_type_id,
-                        "arrange": "O",
-                    },
-                )
-                response.raise_for_status()
-                body = response.json()
+            body = await self._get(
+                "searchKeyword2",
+                keyword=query,
+                MobileOS="ETC",
+                MobileApp="Yetgil",
+                _type="json",
+                numOfRows=num_rows,
+                # contentTypeId으로 좁히고 사진 있는 것부터(arrange=O) 정렬한다.
+                # 필터 없이 검색하면 같은 지명의 엉뚱한 업종이 뒤섞여 나온다
+                # (예: "해운대" 검색 시 관광지 대신 다이소·안경점이 먼저 나오는 걸 확인함).
+                contentTypeId=content_type_id,
+                arrange="O",
+            )
         except (httpx.HTTPError, ValueError):
             logger.exception("TourAPI keyword search failed for query=%s", query)
             return []
@@ -291,8 +301,7 @@ class TourApiService:
         if not settings.tour_api_key:
             return []
 
-        params = {
-            "serviceKey": settings.tour_api_key,
+        params: dict[str, object] = {
             "MobileOS": "ETC",
             "MobileApp": "Yetgil",
             "_type": "json",
@@ -306,10 +315,7 @@ class TourApiService:
             params["contentTypeId"] = content_type_id
 
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self._base_url}/locationBasedList2", params=params)
-                response.raise_for_status()
-                body = response.json()
+            body = await self._get("locationBasedList2", **params)
         except (httpx.HTTPError, ValueError):
             logger.exception("TourAPI locationBasedList2 failed for (%s, %s)", latitude, longitude)
             return []
@@ -404,19 +410,13 @@ class TourApiService:
 
         content_id = location_id.removeprefix("tour-")
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(
-                    f"{self._base_url}/detailCommon2",
-                    params={
-                        "serviceKey": settings.tour_api_key,
-                        "contentId": content_id,
-                        "MobileOS": "ETC",
-                        "MobileApp": "Yetgil",
-                        "_type": "json",
-                    },
-                )
-                response.raise_for_status()
-                body = response.json()
+            body = await self._get(
+                "detailCommon2",
+                contentId=content_id,
+                MobileOS="ETC",
+                MobileApp="Yetgil",
+                _type="json",
+            )
         except (httpx.HTTPError, ValueError):
             logger.exception("TourAPI detail lookup failed for id=%s", location_id)
             return None
@@ -581,20 +581,14 @@ class TourApiService:
 
     async def _search_first_place(self, keyword: str) -> dict | None:
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(
-                    f"{self._base_url}/searchKeyword2",
-                    params={
-                        "serviceKey": settings.tour_api_key,
-                        "keyword": keyword,
-                        "MobileOS": "ETC",
-                        "MobileApp": "Yetgil",
-                        "_type": "json",
-                        "numOfRows": 1,
-                    },
-                )
-                response.raise_for_status()
-                body = response.json()
+            body = await self._get(
+                "searchKeyword2",
+                keyword=keyword,
+                MobileOS="ETC",
+                MobileApp="Yetgil",
+                _type="json",
+                numOfRows=1,
+            )
         except (httpx.HTTPError, ValueError):
             logger.exception("TourAPI place search failed for keyword=%s", keyword)
             return None

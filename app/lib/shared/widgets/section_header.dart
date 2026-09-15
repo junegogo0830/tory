@@ -13,14 +13,22 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(title, style: AppTypography.title),
+        Text(title, style: AppTypography.sectionTitle),
         if (actionLabel != null)
-          GestureDetector(
+          InkWell(
             onTap: onAction,
-            child: Text(
-              actionLabel!,
-              style: AppTypography.subhead.copyWith(color: AppColors.accentDeep),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(actionLabel!, style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary)),
+                  Icon(Icons.chevron_right, size: 16, color: AppColors.inkTertiary),
+                ],
+              ),
             ),
           ),
       ],

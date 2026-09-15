@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import desc, select, func, delete
@@ -12,15 +13,22 @@ from ..db.models import (
     CommunityPost,
     CommunityPostPhoto,
     CommunityReport,
+    RegionMembership,
     User,
     UserBlock,
 )
 from ..models.community import (
+    MAX_BLOCK_TEXT_LENGTH,
+    MAX_CONTENT_BLOCKS,
+    TRADE_STATUSES,
     BlockedUserResponse,
     CommentResponse,
     CommunityPostResponse,
+    ContentBlockResponse,
     NeighborResponse,
     PostDetailResponse,
+    RegionStatsResponse,
+    SchoolSearchResult,
 )
 from .kakao_local import KakaoLocalService
 from .notifications import NotificationService
@@ -54,8 +62,38 @@ class CommunityService:
         return await self._kakao_local_service.reverse_geocode(latitude, longitude)
 
     async def set_home_region(self, db: AsyncSession, user: User, region: str) -> None:
+        """"보고 있는" 동네를 바꾼다. 처음 가입하는 지역이면 가입 이력
+        (region_memberships)에도 함께 남는다 — 이미 가입한 지역으로 전환하는
+        건 이 호출 하나로 끝나지만(가입 화면 없이 바로), 새 지역 "가입"은
+        프론트가 가입 확인 화면을 먼저 보여준 뒤에 이 메서드를 호출한다."""
         user.home_region = region
+        await db.execute(
+            insert(RegionMembership)
+            .values(user_id=user.id, region=region)
+            .on_conflict_do_nothing(index_elements=["user_id", "region"])
+        )
         await db.commit()
+
+    async def list_my_regions(self, db: AsyncSession, user: User) -> list[str]:
+        """이 사용자가 가입한 모든 동네 — 최근 가입한 순. 커뮤니티 탭의 지역
+        토글이 그대로 보여준다."""
+        rows = await db.execute(
+            select(RegionMembership.region)
+            .where(RegionMembership.user_id == user.id)
+            .order_by(desc(RegionMembership.joined_at))
+        )
+        return [row[0] for row in rows.all()]
+
+    async def region_stats(self, db: AsyncSession, region: str) -> RegionStatsResponse:
+        member_count = await db.scalar(
+            select(func.count()).select_from(RegionMembership).where(RegionMembership.region == region)
+        )
+        post_count = await db.scalar(
+            select(func.count())
+            .select_from(CommunityPost)
+            .where(CommunityPost.region == region, CommunityPost.hidden.is_(False))
+        )
+        return RegionStatsResponse(region=region, member_count=member_count or 0, post_count=post_count or 0)
 
     async def create_post(
         self,
@@ -69,11 +107,24 @@ class CommunityService:
         location_id: str | None = None,
         caption: str | None = None,
         memory_year: int | None = None,
+        reveal_at: datetime.datetime | None = None,
+        price: int | None = None,
+        trade_status: str | None = None,
+        is_trade: bool = True,
+        content_blocks: str | None = None,
     ) -> CommunityPostResponse:
         region = region.strip()
         title, caption = (title or '').strip(), (caption or '').strip()
         files = [f for f in (files or []) if f.filename]
-        if not 2 <= len(region) <= 100 or len(title) > 120 or len(caption) > 500:
+
+        # 블로그 스타일 글쓰기 — 텍스트/사진 블록이 오면 검증하고, caption을 명시
+        # 안 했으면 블록의 텍스트를 이어붙여 파생시킨다(목록 카드/검색이 지금처럼
+        # 동작하려면 caption이 그대로 채워져 있어야 한다).
+        parsed_blocks = self._parse_content_blocks(content_blocks, photo_count=len(files))
+        if parsed_blocks is not None and not caption:
+            caption = '\n\n'.join(b['text'] for b in parsed_blocks if b['type'] == 'text' and b['text']).strip()
+
+        if not 2 <= len(region) <= 100 or len(title) > 120 or len(caption) > 2000:
             raise HTTPException(422, '지역·제목·내용의 길이를 확인해주세요')
         if memory_year is not None and not 1900 <= memory_year <= datetime.date.today().year:
             raise HTTPException(422, '사진 연도를 확인해주세요')
@@ -84,6 +135,29 @@ class CommunityService:
         if len(files) > _MAX_PHOTOS_PER_POST:
             raise HTTPException(422, f'사진은 최대 {_MAX_PHOTOS_PER_POST}장까지 첨부할 수 있어요')
 
+        # 주민 게시판은 글쓰기 시 "중고거래" 또는 "자유글" 카테고리를 고른다.
+        # 중고거래를 골랐을 때만 가격/거래상태를 갖고, 상태를 안 골랐으면
+        # "판매중"이 기본이다. 자유글이거나 다른 게시판이면 두 값 다 항상
+        # None으로 무시한다(잘못 섞여 들어오는 걸 막는다).
+        if board == 'resident' and is_trade:
+            if price is not None and price < 0:
+                raise HTTPException(422, '가격을 확인해주세요')
+            trade_status = trade_status if trade_status in TRADE_STATUSES else '판매중'
+        else:
+            price, trade_status = None, None
+
+        if board == 'timecapsule':
+            if reveal_at is not None and reveal_at.tzinfo is None:
+                # 프론트가 타임존 없는 문자열을 보내는 경우를 대비한 방어적 처리 — UTC로 간주한다.
+                reveal_at = reveal_at.replace(tzinfo=datetime.timezone.utc)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            if reveal_at is None or reveal_at <= now:
+                raise HTTPException(422, '봉인을 풀 미래 날짜를 선택해주세요')
+            if reveal_at > now + datetime.timedelta(days=365 * 10):
+                raise HTTPException(422, '봉인 기간은 최대 10년까지예요')
+        else:
+            reveal_at = None
+
         photo_paths = [await self._save_photo(f) for f in files]
         post = CommunityPost(
             user_id=user.id,
@@ -93,7 +167,11 @@ class CommunityService:
             location_id=location_id,
             photo_path=photo_paths[0] if photo_paths else None,
             caption=caption,
+            content_blocks=json.dumps(parsed_blocks) if parsed_blocks is not None else None,
             memory_year=memory_year,
+            reveal_at=reveal_at,
+            price=price,
+            trade_status=trade_status,
         )
         db.add(post)
         await db.flush()
@@ -134,31 +212,85 @@ class CommunityService:
         db: AsyncSession,
         *,
         author_id: int,
-        region: str,
+        region: str | None = None,
         limit: int = 20,
         offset: int = 0,
         viewer_id: int | None = None,
     ) -> list[CommunityPostResponse]:
-        """"친구찾기"에서 이웃을 눌렀을 때 — 그 사람이 이 동네에 쓴 글(게시판 무관)."""
+        """"친구찾기"에서 이웃을 눌렀을 때 — 그 사람이 이 동네에 쓴 글(게시판 무관).
+        region이 None이면 지역 무관 전체 글(프로필 "등록한 게시글")을 준다."""
         blocked = await self._blocked_ids(db, viewer_id)
         if author_id in blocked:
             return []
         author = await db.get(User, author_id)
         if author is None:
             return []
+        conditions = [CommunityPost.user_id == author_id, CommunityPost.hidden.is_(False)]
+        if region is not None:
+            conditions.append(CommunityPost.region == region)
         stmt = (
             select(CommunityPost)
-            .where(
-                CommunityPost.user_id == author_id,
-                CommunityPost.region == region,
-                CommunityPost.hidden.is_(False),
-            )
+            .where(*conditions)
             .order_by(desc(CommunityPost.created_at), desc(CommunityPost.id))
             .limit(limit)
             .offset(offset)
         )
         rows = await db.execute(stmt)
         return [self._to_response(post, author_nickname=author.nickname) for post in rows.scalars().all()]
+
+    @staticmethod
+    def _parse_content_blocks(raw: str | None, *, photo_count: int) -> list[dict] | None:
+        """블로그 스타일 글쓰기 본문 블록 JSON을 검증한다.
+
+        text 블록은 `{"type": "text", "text": "..."}`, image 블록은 그 글과 함께
+        업로드된 파일 순서를 가리키는 `{"type": "image", "index": N}` — URL은
+        저장하지 않고 응답을 만들 때(`_resolve_content_blocks`) 그때그때 채운다.
+        """
+        if raw is None or not raw.strip():
+            return None
+        try:
+            blocks = json.loads(raw)
+        except ValueError:
+            raise HTTPException(422, '본문 형식이 올바르지 않아요') from None
+        if not isinstance(blocks, list) or not blocks:
+            raise HTTPException(422, '본문 형식이 올바르지 않아요')
+        if len(blocks) > MAX_CONTENT_BLOCKS:
+            raise HTTPException(422, f'본문은 최대 {MAX_CONTENT_BLOCKS}블록까지 작성할 수 있어요')
+
+        parsed: list[dict] = []
+        for block in blocks:
+            if not isinstance(block, dict):
+                raise HTTPException(422, '본문 형식이 올바르지 않아요')
+            block_type = block.get('type')
+            if block_type == 'text':
+                text = str(block.get('text') or '').strip()
+                if len(text) > MAX_BLOCK_TEXT_LENGTH:
+                    raise HTTPException(422, '블록 하나의 글자 수를 확인해주세요')
+                if text:
+                    parsed.append({'type': 'text', 'text': text})
+            elif block_type == 'image':
+                index = block.get('index')
+                if not isinstance(index, int) or not 0 <= index < photo_count:
+                    raise HTTPException(422, '본문에 첨부한 사진을 확인해주세요')
+                parsed.append({'type': 'image', 'index': index})
+            else:
+                raise HTTPException(422, '본문 형식이 올바르지 않아요')
+        return parsed or None
+
+    @staticmethod
+    def _resolve_content_blocks(post: CommunityPost, photo_urls: list[str]) -> list[ContentBlockResponse] | None:
+        if not post.content_blocks:
+            return None
+        raw_blocks = json.loads(post.content_blocks)
+        resolved: list[ContentBlockResponse] = []
+        for block in raw_blocks:
+            if block['type'] == 'image':
+                index = block['index']
+                if 0 <= index < len(photo_urls):
+                    resolved.append(ContentBlockResponse(type='image', image_url=photo_urls[index]))
+            else:
+                resolved.append(ContentBlockResponse(type='text', text=block.get('text')))
+        return resolved or None
 
     async def _save_photo(self, file: UploadFile) -> str:
         return await save_uploaded_photo(
@@ -171,18 +303,34 @@ class CommunityService:
     ) -> CommunityPostResponse:
         cover = f"/uploads/community/{post.photo_path}" if post.photo_path else None
         urls = photo_urls if photo_urls is not None else ([cover] if cover else [])
+        # 타임캡슐은 reveal_at이 지나기 전까지 내용을 가린다 — 제목/내용/사진을
+        # 아예 빼서 클라이언트가 실수로라도 못 읽게 한다("잠긴 카드처럼 보이게만"
+        # 프론트에서 처리하는 게 아니라 서버가 애초에 안 준다).
+        revealed = post.board != "timecapsule" or post.reveal_at is None or post.reveal_at <= datetime.datetime.now(datetime.timezone.utc)
+        # content_blocks의 image 블록은 전체 사진 순서를 알아야 URL을 맞게 채울 수
+        # 있다 — photo_urls를 명시적으로 받은 호출(글쓰기 직후/상세 조회)에서만
+        # 채우고, 커버 사진 하나만 아는 목록 조회에서는 굳이 만들지 않는다(목록
+        # 카드는 어차피 caption/photo_url만 쓴다).
+        content_blocks = (
+            CommunityService._resolve_content_blocks(post, urls) if revealed and photo_urls is not None else None
+        )
         return CommunityPostResponse(
             id=post.id,
             author_id=post.user_id,
             author_nickname=author_nickname,
             region=post.region,
             board=post.board,
-            title=post.title,
+            title=post.title if revealed else None,
             location_id=post.location_id,
-            photo_url=urls[0] if urls else None,
-            photo_urls=urls,
-            caption=post.caption,
-            memory_year=post.memory_year,
+            photo_url=urls[0] if urls and revealed else None,
+            photo_urls=urls if revealed else [],
+            caption=post.caption if revealed else None,
+            content_blocks=content_blocks,
+            memory_year=post.memory_year if revealed else None,
+            reveal_at=post.reveal_at,
+            revealed=revealed,
+            price=post.price if revealed else None,
+            trade_status=post.trade_status if revealed else None,
             created_at=post.created_at,
         )
 
@@ -221,6 +369,20 @@ class CommunityService:
         if not body.title.strip() and not body.caption.strip():
             raise HTTPException(422, '제목이나 내용을 입력해주세요')
         post.title, post.caption = body.title.strip(), body.caption.strip()
+        # 이 수정 화면은 블록 단위 편집을 지원하지 않는다 — 블록 글을 여기서
+        # 고치면 caption만 바뀌고 화면은 여전히 옛 블록을 그리는 모순이 생기니,
+        # 수정 시점에 content_blocks를 지워 캡션 기반(평면) 렌더링으로 되돌린다.
+        post.content_blocks = None
+        await db.commit()
+        return await self.detail(db, post_id, user)
+
+    async def update_trade_status(self, db, post_id, user, trade_status: str):
+        post = await self._post(db, post_id)
+        if post.user_id != user.id:
+            raise HTTPException(403, '작성자만 변경할 수 있어요')
+        if post.board != 'resident':
+            raise HTTPException(422, '주민 게시판 글에만 거래 상태가 있어요')
+        post.trade_status = trade_status
         await db.commit()
         return await self.detail(db, post_id, user)
 
@@ -374,6 +536,59 @@ class CommunityService:
         if blocked:
             stmt = stmt.where(User.id.not_in(blocked))
         rows = await db.execute(stmt.order_by(desc(func.coalesce(post_counts.c.post_count, 0)), User.nickname))
+        return [
+            NeighborResponse(user_id=row[0], nickname=row[1], profile_image_url=row[2], post_count=row[3])
+            for row in rows.all()
+        ]
+
+    # -- 장소별 추억 타임라인 ---------------------------------------------------
+
+    async def timeline(
+        self, db: AsyncSession, *, region: str, board: str = "memory", viewer_id: int | None = None
+    ) -> list[CommunityPostResponse]:
+        """추억 게시판 글을 연도순(오래된 → 최신)으로 묶어 보여준다. 페이지네이션
+        없이 한 번에 최대 200개를 가져온다 — 지금 규모에서 한 지역의 추억 글이
+        그보다 많아질 일은 당분간 없고, 있더라도 타임라인은 "쭉 훑어보는" 화면이라
+        더보기 버튼을 넣는 게 오히려 몰입을 깬다."""
+        blocked = await self._blocked_ids(db, viewer_id)
+        stmt = (
+            select(CommunityPost, User.nickname)
+            .join(User, User.id == CommunityPost.user_id)
+            .where(CommunityPost.region == region, CommunityPost.board == board, CommunityPost.hidden.is_(False))
+        )
+        if blocked:
+            stmt = stmt.where(CommunityPost.user_id.not_in(blocked))
+        stmt = stmt.order_by(
+            CommunityPost.memory_year.is_(None), CommunityPost.memory_year.asc(), CommunityPost.created_at.asc()
+        ).limit(200)
+        result = await db.execute(stmt)
+        return [self._to_response(post, author_nickname=nickname) for post, nickname in result.all()]
+
+    # -- 모교 커뮤니티(동창찾기) -------------------------------------------------
+
+    async def search_schools(self, query: str) -> list[SchoolSearchResult]:
+        """모교 검색 — 카카오 카테고리 코드(SC4=학교)로 필터링해 다른 지역/장소가 섞이지 않게 한다."""
+        places = await self._kakao_local_service.search_schools(query, limit=8)
+        return [
+            SchoolSearchResult(id=place["id"] or place["name"], name=place["name"], address=place["address"])
+            for place in places
+            if place.get("name")
+        ]
+
+    async def active_authors(self, db: AsyncSession, user: User, *, region: str) -> list[NeighborResponse]:
+        """"동창찾기" 등 학교처럼 home_region 개념이 없는 스코프에서 쓴다 — 내
+        동네 설정과 무관하게, 이 지역(스코프) 문자열에 실제로 글을 쓴 사람들을
+        글 수 순으로 보여준다."""
+        blocked = await self._blocked_ids(db, user.id)
+        stmt = (
+            select(User.id, User.nickname, User.profile_image_url, func.count().label("post_count"))
+            .join(CommunityPost, CommunityPost.user_id == User.id)
+            .where(CommunityPost.region == region, CommunityPost.hidden.is_(False), User.id != user.id)
+            .group_by(User.id)
+        )
+        if blocked:
+            stmt = stmt.where(User.id.not_in(blocked))
+        rows = await db.execute(stmt.order_by(desc("post_count"), User.nickname))
         return [
             NeighborResponse(user_id=row[0], nickname=row[1], profile_image_url=row[2], post_count=row[3])
             for row in rows.all()

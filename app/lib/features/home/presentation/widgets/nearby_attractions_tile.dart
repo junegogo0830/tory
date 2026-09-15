@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/card_fade_art.dart';
 
 /// 홈 화면에서 커뮤니티 가입 카드와 같은 크기로 보여주는 "내 주변 관광지" 입구.
 /// 탭하면 위치를 받아 앱 내 지도(`/nearby-map`)로 들어간다.
@@ -62,22 +63,36 @@ class NearbyAttractionsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       onTap: () => _open(context),
-      child: Row(
+      child: Stack(
         children: [
-          const Icon(Icons.travel_explore_outlined, color: AppColors.accentDeep, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('내 주변 관광지', style: AppTypography.headline),
-                Text('지도에서 가까운 명소를 둘러보세요', style: AppTypography.footnote),
-              ],
-            ),
+          const CardFadeArt(imageAsset: 'assets/logo/nearby_attractions.png'),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.pastelSky,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.travel_explore_outlined, color: AppColors.accentDeep, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('내 주변 관광지', style: AppTypography.headline),
+                    const SizedBox(height: 2),
+                    Text('지도에서 가까운 명소를 둘러보세요', style: AppTypography.footnote),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 20, color: AppColors.inkTertiary),
+            ],
           ),
-          Icon(Icons.chevron_right, color: AppColors.inkTertiary),
         ],
       ),
     );

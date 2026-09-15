@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../data/models/hometown_location.dart';
 import '../../../data/models/news_item.dart';
@@ -13,11 +14,13 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../archive/data/archive_providers.dart';
 import '../data/home_providers.dart';
 import 'widgets/community_preview_section.dart';
-import 'widgets/highlight_carousel.dart';
+import 'widgets/hero_highlight_banner.dart';
 import 'widgets/kakao_restaurant_card.dart';
 import 'widgets/nearby_attractions_tile.dart';
+import 'widgets/notice_banner.dart';
 import 'widgets/quick_action_grid.dart';
 import 'widgets/restaurant_categories_carousel.dart';
+import 'widgets/todays_memory_card.dart';
 import 'widgets/weather_top_banner.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -190,19 +193,25 @@ class _HomeContent extends StatelessWidget {
             onSelect: onSelectSuggestion,
           ),
         ],
-        const SizedBox(height: 18),
-        const HighlightCarousel(key: ValueKey('home-highlights')),
-        const SizedBox(height: 22),
+        // 섹션 간격은 정보 관계에 따라 다르게 — 배너→하이라이트→바로가기는 한
+        // 덩어리처럼 붙이고, 그 뒤 큰 섹션 사이는 28로 넉넉히 띄운다.
+        const SizedBox(height: 16),
+        const HeroHighlightBanner(key: ValueKey('home-highlights')),
+        const SizedBox(height: 20),
         const QuickActionGrid(),
-        const SizedBox(height: 22),
+        const SizedBox(height: 24),
+        const NoticeBanner(),
+        const SizedBox(height: 24),
+        const TodaysMemoryCard(),
+        const SizedBox(height: 30),
         const RestaurantCategoriesCarousel(key: ValueKey('home-restaurants')),
-        const SizedBox(height: 22),
+        const SizedBox(height: 24),
         const NearbyAttractionsTile(),
-        const SizedBox(height: 12),
+        const SizedBox(height: 30),
         const CommunityPreviewSection(),
-        const SizedBox(height: 22),
+        const SizedBox(height: 30),
         const KakaoRestaurantCard(),
-        const SizedBox(height: 22),
+        const SizedBox(height: 30),
         if (primary != null) ...[
           _NewsPanel(locationId: primary!.id),
           if (locationCount > 1) ...[
@@ -263,11 +272,9 @@ class _SearchSuggestions extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 14, offset: Offset(0, 5)),
-        ],
+        boxShadow: AppShadows.card,
       ),
       constraints: const BoxConstraints(maxHeight: 340),
       child: isSearching
@@ -337,13 +344,12 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.card),
-        boxShadow: const [
-          BoxShadow(color: Color(0x12000000), blurRadius: 18, offset: Offset(0, 7)),
-        ],
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
       ),
       child: child,
     );
@@ -360,9 +366,9 @@ class _PanelHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.accentDeep, size: 22),
-        const SizedBox(width: 8),
-        Expanded(child: Text(title, style: AppTypography.headline)),
+        Icon(icon, color: AppColors.accentDeep, size: 20),
+        const SizedBox(width: 7),
+        Expanded(child: Text(title, style: AppTypography.headline.copyWith(fontWeight: FontWeight.w700))),
         trailing ?? const SizedBox.shrink(),
       ],
     );
@@ -450,10 +456,16 @@ class _NewsRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${item.year}', style: AppTypography.caption.copyWith(color: AppColors.accentDeep)),
+                  Text(
+                    '${item.year}',
+                    style: AppTypography.caption.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 3),
-                  Text(item.title, style: AppTypography.subhead.copyWith(color: AppColors.ink)),
-                  const SizedBox(height: 2),
+                  Text(
+                    item.title,
+                    style: AppTypography.subhead.copyWith(color: AppColors.ink, fontWeight: FontWeight.w500, height: 1.4),
+                  ),
+                  const SizedBox(height: 3),
                   Text(item.source, style: AppTypography.caption),
                 ],
               ),

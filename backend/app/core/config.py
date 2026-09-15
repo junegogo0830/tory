@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     naver_news_client_secret: str = ""
     kakao_map_js_key: str = ""
     kakao_rest_api_key: str = ""
+
+    # 네이버클라우드 SENS(문자 발송) — 셋 다 비어 있으면 실제로 문자를 보내지 않고
+    # 인증번호를 로그로만 남긴다(services/sms.py) — 로컬 개발/키 발급 전에도
+    # 회원가입 전체 흐름을 막힘 없이 테스트할 수 있게 하는 의도적인 폴백이다.
+    ncp_access_key: str = ""
+    ncp_secret_key: str = ""
+    ncp_sens_service_id: str = ""
+    # SENS에 사전 등록한 발신번호. 하이픈 없이 숫자만(예: "01012345678").
+    ncp_sens_sender_number: str = ""
     anthropic_api_key: str = ""
     openweather_api_key: str = ""
 
@@ -43,6 +52,10 @@ class Settings(BaseSettings):
     # 형제 폴더인 이 경로도 자동으로 "/uploads/profile/<file>"로 서빙된다).
     profile_upload_dir: str = str(_REPO_ROOT / "backend" / "uploads" / "profile")
     profile_upload_max_bytes: int = 5 * 1024 * 1024
+
+    # 코스 커스텀 장소에 직접 등록하는 사진 — 같은 "/uploads" 마운트 아래 형제 폴더.
+    custom_course_upload_dir: str = str(_REPO_ROOT / "backend" / "uploads" / "custom-course")
+    custom_course_upload_max_bytes: int = 8 * 1024 * 1024
 
     # 개발 편의를 위한 기본값이지 실제 값이 아니다. 배포 전 반드시 .env에서
     # `openssl rand -hex 32`로 생성한 값으로 덮어써야 한다.
