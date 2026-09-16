@@ -24,7 +24,7 @@ _MOCK_COURSES: dict[str, list[CourseResponse]] = {
             description="어릴 적 놀던 골목에서 순천만 습지까지 이어지는 감성 코스",
             sentiment_score=0.86,
             stops=[
-                CourseStop(name="저전동 골목"),
+                CourseStop(name="순천 원도심 골목"),
                 CourseStop(name="순천만국가정원"),
                 CourseStop(name="순천만습지 노을전망대"),
             ],
@@ -35,7 +35,7 @@ _MOCK_COURSES: dict[str, list[CourseResponse]] = {
             id="c2", title="옛 시장 미식 코스", location_id="suncheon-jeonpo",
             description="추억의 분식집부터 최근 인기 맛집까지",
             sentiment_score=0.74,
-            stops=[CourseStop(name="저전동 골목시장"), CourseStop(name="아랫장 국밥거리")],
+            stops=[CourseStop(name="순천 원도심 골목시장"), CourseStop(name="아랫장 국밥거리")],
             duration_label="약 2시간",
             category="미식",
         ),
@@ -173,15 +173,20 @@ class RecommendationService:
         사진·좌표를 보강한다.
 
         - 좌표: 이미 알고 있으면(좌표 기반 코스 생성 결과) 덮어쓰지 않고, 없는
-          정류지만 채운다 (예: "저전동 골목"은 등록 관광지가 아니라 못 찾음).
+          정류지만 채운다 (등록 관광지가 아닌 골목은 사진이 없을 수 있음).
         - 대표 사진: 원래 정류지 순서상 가장 앞선, 검색에 걸린 정류지의 사진을 쓴다.
         """
-        cached = await cache_get(f"enriched-course:v2:{course.id}")
+        cached = await cache_get(f"enriched-course:v3:{course.id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
-        infos = await asyncio.gather(
-            *(self._tour_api_service.find_place_info(stop.name) for stop in course.stops)
-        )
+        location = await self._tour_api_service.get_location_by_id(course.location_id) if course.location_id else None
+        region = location.region if location else course.region
+        async def stop_info(stop):
+            info = await self._tour_api_service.find_place_info(stop.name)
+            if info is None and region:
+                info = await self._tour_api_service.find_place_info(f"{region} {stop.name}")
+            return info
+        infos = await asyncio.gather(*(stop_info(stop) for stop in course.stops))
 
         enriched_stops = []
         for stop, info in zip(course.stops, infos, strict=True):
@@ -200,11 +205,10 @@ class RecommendationService:
         if image_url is None:
             image_url = next((info["image_url"] for info in infos if info and info["image_url"]), None)
         if image_url is None and course.location_id:
-            location = await self._tour_api_service.get_location_by_id(course.location_id)
             if location is not None:
                 image_url = await self._tour_api_service.get_city_image(location.region)
 
         result = course.model_copy(update={"stops": enriched_stops, "image_url": image_url})
-        await cache_set(f"enriched-course:v2:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
+        await cache_set(f"enriched-course:v3:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
         await cache_set(f"course-detail:{course.id}", result.model_dump_json(), ex=86400)
         return result

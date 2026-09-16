@@ -48,7 +48,7 @@ _CONTENT_TYPE_LABELS = {
 _MOCK_LOCATIONS: dict[str, LocationResponse] = {
     "suncheon-jeonpo": LocationResponse(
         id="suncheon-jeonpo",
-        name="저전동 골목",
+        name="순천 원도심 골목",
         region="전라남도 순천시",
         description="초등학교 등굣길이었던 골목길",
         past_year=1998,
@@ -486,7 +486,7 @@ class TourApiService:
 
         좌표는 위치 기반 코스 추천(주변 실제 장소 검색)에 필요하다 — 큐레이션
         장소는 애초에 lat/lng을 갖고 있지 않으므로 로드뷰와 같은 방식으로 채운다.
-        정확히 이 장소 이름으로 매칭되는 사진이 없으면(예: "저전동 골목"은
+        정확히 이 장소 이름으로 매칭되는 사진이 없으면(예: 원도심 골목은
         등록 관광지가 아님) 시/군 대표 사진으로 한 번 더 폴백한다.
         """
         own_image, coords = await asyncio.gather(

@@ -26,7 +26,7 @@ def strip_html(text: str) -> str:
 
 
 def simplify_place_name(region: str, name: str) -> str:
-    """"전라남도 순천시" + "저전동 골목" 같은 큐레이션 풀네임을 외부 검색 API에
+    """"전라남도 순천시" + "원도심 골목" 같은 큐레이션 풀네임을 외부 검색 API에
     넣기 좋은 짧은 질의로 줄인다.
 
     네이버 뉴스 검색과 카카오 로컬 주소 검색 둘 다, "골목"/"상가"/"인근" 같은

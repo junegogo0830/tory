@@ -45,15 +45,15 @@ _STORY_SYSTEM_PROMPT = """당신은 "옛길" 앱에서 특정 동네의 "그 시
 _MOCK_NEWS: dict[str, list[NewsItemResponse]] = {
     "suncheon-jeonpo": [
         NewsItemResponse(
-            id="n1", year=1998, title="순천 저전동, 신설 초등학교 개교",
-            source="전남매일", summary="학생 수 증가에 따라 저전동에 새 초등학교가 문을 열었다.",
+            id="n1", year=1998, title="순천 원도심, 신설 초등학교 개교",
+            source="전남매일", summary="학생 수 증가에 따라 순천 원도심에 새 초등학교가 문을 열었다.",
         ),
         NewsItemResponse(
-            id="n2", year=2004, title="저전동 골목시장 활성화 사업 추진",
+            id="n2", year=2004, title="순천 원도심 골목시장 활성화 사업 추진",
             source="순천신문", summary="지역 상인회를 중심으로 골목시장 환경 개선 사업이 시작됐다.",
         ),
         NewsItemResponse(
-            id="n3", year=2015, title="저전동 재개발 논의 본격화",
+            id="n3", year=2015, title="순천 원도심 재개발 논의 본격화",
             source="순천신문", summary="노후 주택가 재개발을 위한 주민 설명회가 열렸다.",
         ),
     ],
