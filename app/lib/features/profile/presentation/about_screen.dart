@@ -56,6 +56,13 @@ class AboutScreen extends StatelessWidget {
               style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 16),
+            Text(
+              '데이터 제공: 한국관광공사(국문 관광정보 서비스, 관광사진 정보 서비스),\n'
+              '카카오맵, 구글 플레이스, 기상청',
+              style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

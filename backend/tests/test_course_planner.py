@@ -11,6 +11,7 @@ class Tour:
 class Kakao:
     async def geocode(self, region): return (37.5,127.)
     async def search_places(self, query, limit=10): return []
+    async def search_restaurants(self, *, latitude, longitude, radius_m=5000, limit=15, category_group_code='FD6'): return []
 class Weather:
     async def get_current_weather(self,*args): return SimpleNamespace(condition='rain_day',temperature=20,description='비')
 
@@ -42,6 +43,7 @@ async def test_backfills_missing_stop_photos_with_google_places():
                 'attribution_name': '기여자',
                 'attribution_url': 'https://maps.google.com/contrib/1',
             }
+        async def find_nearby(self, **kwargs): return []
     google_places = GooglePlaces()
     planner = CoursePlanner(Tour(), Kakao(), Weather(), google_places)
     req = CourseGenerateRequest(region='테스트시', categories=['문화', '산책'], duration_hours=3)
@@ -56,6 +58,66 @@ async def test_backfills_missing_stop_photos_with_google_places():
     assert by_name['작은전시관'].photo_attribution_url == 'https://maps.google.com/contrib/1'
     assert '작은전시관' in google_places.queried
     assert '테스트박물관' not in google_places.queried
+
+
+@pytest.mark.asyncio
+async def test_google_places_supplement_filters_by_requested_category_types():
+    """관광지 등록이 적어 구글 플레이스로 후보를 보강할 때도, 요청한 관심사와
+    무관한 업종(옷가게 등)은 CoursePlanner 자체 필터로 섞이지 않아야 한다."""
+    class ThinTour:
+        async def find_nearby_places(self, **kwargs): return []
+    class NoRainWeather:
+        async def get_current_weather(self, *args): return None
+    class GooglePlaces:
+        async def find_photo(self, name, region=None): return None
+        async def find_nearby(self, **kwargs):
+            return [
+                {'title': '동네공원', 'latitude': 37.5005, 'longitude': 127.0005, 'address': '테스트시',
+                 'image_url': 'https://g/park.jpg', 'attribution_name': 'a', 'attribution_url': 'https://x',
+                 'types': ['park', 'point_of_interest']},
+                {'title': '호수공원', 'latitude': 37.5008, 'longitude': 127.0008, 'address': '테스트시',
+                 'image_url': 'https://g/lake.jpg', 'attribution_name': 'c', 'attribution_url': 'https://z',
+                 'types': ['park', 'point_of_interest']},
+                {'title': '패션스토어', 'latitude': 37.5006, 'longitude': 127.0006, 'address': '테스트시',
+                 'image_url': 'https://g/store.jpg', 'attribution_name': 'b', 'attribution_url': 'https://y',
+                 'types': ['clothing_store', 'point_of_interest', 'establishment']},
+            ]
+    planner = CoursePlanner(ThinTour(), Kakao(), NoRainWeather(), GooglePlaces())
+    req = CourseGenerateRequest(region='테스트시', categories=['산책'], duration_hours=3)
+    result = await planner.generate(req)
+    names = [s.name for s in result.stops]
+    assert '동네공원' in names
+    assert '호수공원' in names
+    assert '패션스토어' not in names
+
+
+@pytest.mark.asyncio
+async def test_claude_polish_reorders_and_rewrites_title_when_valid():
+    from types import SimpleNamespace
+    planner = CoursePlanner(Tour(), Kakao(), Weather())
+    def create(**kwargs):
+        payload = '{"order": ["작은전시관", "테스트박물관"], "title": "가을 문화 산책", "description": "테스트시의 작은 전시관과 박물관을 잇는 코스예요."}'
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=payload)])
+    planner._get_client = lambda: SimpleNamespace(messages=SimpleNamespace(create=create))
+    req = CourseGenerateRequest(region='테스트시', categories=['문화'], duration_hours=3)
+    result = await planner.generate(req)
+    assert [s.name for s in result.stops] == ['작은전시관', '테스트박물관']
+    assert result.title == '가을 문화 산책'
+    assert result.description == '테스트시의 작은 전시관과 박물관을 잇는 코스예요.'
+
+
+@pytest.mark.asyncio
+async def test_claude_polish_falls_back_when_response_invents_a_stop():
+    from types import SimpleNamespace
+    planner = CoursePlanner(Tour(), Kakao(), Weather())
+    def create(**kwargs):
+        payload = '{"order": ["작은전시관", "없는곳"], "title": "가짜", "description": "가짜 설명"}'
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=payload)])
+    planner._get_client = lambda: SimpleNamespace(messages=SimpleNamespace(create=create))
+    req = CourseGenerateRequest(region='테스트시', categories=['문화'], duration_hours=3)
+    result = await planner.generate(req)
+    assert result.stops[0].name == '테스트박물관'
+    assert result.title != '가짜'
 
 
 @pytest.mark.asyncio

@@ -110,8 +110,8 @@ class GooglePlacesService:
         if not settings.google_maps_api_key:
             return []
 
-        # v4: _ALLOWED_TYPES 화이트리스트 + attribution 필드 추가.
-        cache_key = f"gplacenearby:v5:{round(latitude, 3)}:{round(longitude, 3)}:{radius_m}"
+        # v6: 카테고리별 세부 필터링(CoursePlanner)을 위해 raw types도 함께 담는다.
+        cache_key = f"gplacenearby:v6:{round(latitude, 3)}:{round(longitude, 3)}:{radius_m}"
         cached = await cache_get(cache_key)
         if cached is not None:
             return json.loads(cached)
@@ -149,6 +149,7 @@ class GooglePlacesService:
                 "latitude": loc["lat"],
                 "longitude": loc["lng"],
                 "address": result.get("vicinity", ""),
+                "types": result.get("types", []),
                 **photo,
             }
 

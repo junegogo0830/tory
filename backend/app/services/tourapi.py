@@ -360,6 +360,12 @@ class TourApiService:
                 "addr": item.get("addr1", ""),
                 "latitude": _parse_coord(item.get("mapy")),
                 "longitude": _parse_coord(item.get("mapx")),
+                # cat1/cat2: TourAPI 자체 세부 분류(예: A01=자연/A02=인문 하위 A0201=
+                # 역사관광지, A0202=휴양관광지, A0203=체험관광지...) — contenttypeid만
+                # 으로는 "관광지(12)" 안에 노인회 사무실·사우나처럼 관심사와 무관한
+                # 등록 항목까지 섞여 CoursePlanner가 이걸로 한 번 더 좁혀 쓴다.
+                "cat1": item.get("cat1", ""),
+                "cat2": item.get("cat2", ""),
             }
             for item in item_list
             if item.get("title")
