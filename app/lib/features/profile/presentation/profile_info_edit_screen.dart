@@ -234,6 +234,22 @@ class _ProfileInfoEditScreenState extends ConsumerState<ProfileInfoEditScreen> {
                 ],
               ),
               const SizedBox(height: 22),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('친구찾기 기능 사용'),
+                subtitle: const Text('켜면 다른 사람이 추억 조건으로 나를 찾을 수 있어요.'),
+                value: profile.friendFinderEnabled,
+                onChanged: _busy ? null : (value) async {
+                  setState(() => _busy = true);
+                  try {
+                    await ref.read(profileRepositoryProvider).updateInfo(friendFinderEnabled: value);
+                    ref.invalidate(profileProvider);
+                  } finally {
+                    if (mounted) setState(() => _busy = false);
+                  }
+                },
+              ),
+              const SizedBox(height: 22),
               Text('이름', style: AppTypography.footnote),
               const SizedBox(height: 6),
               TextField(

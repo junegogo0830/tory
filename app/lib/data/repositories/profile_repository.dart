@@ -76,10 +76,10 @@ class ProfileRepository {
   }
 
   /// "정보 수정" — 성별/이름/전화번호(전부 선택, 보낸 필드만 바뀐다).
-  Future<Profile> updateInfo({String? gender, String? fullName, String? phoneNumber}) async {
+  Future<Profile> updateInfo({String? gender, String? fullName, String? phoneNumber, bool? friendFinderEnabled}) async {
     final response = await _apiClient.dio.patch(
       '/api/profile/info',
-      data: {'gender': gender, 'full_name': fullName, 'phone_number': phoneNumber},
+      data: {'gender': gender, 'full_name': fullName, 'phone_number': phoneNumber, 'friend_finder_enabled': friendFinderEnabled},
     );
     return Profile.fromJson(response.data as Map<String, dynamic>);
   }

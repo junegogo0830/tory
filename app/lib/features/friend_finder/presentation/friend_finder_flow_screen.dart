@@ -9,6 +9,7 @@ import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/empty_state.dart';
 import 'add_memory_attribute_sheet.dart';
+import '../../profile/data/profile_providers.dart';
 
 /// "친구 찾기" — 지역 대신 추억 조건(학교/동네/자주 간 장소 + 시기)을 골라
 /// 같은 추억을 가진 사람을 점수순으로 추천한다. 조건을 계속 추가/삭제하면서
@@ -63,6 +64,26 @@ class _FriendFinderFlowScreenState extends ConsumerState<FriendFinderFlowScreen>
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(profileProvider);
+    if (profile.hasValue && !profile.value!.friendFinderEnabled) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('친구 찾기')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.person_search_outlined, size: 48),
+              const SizedBox(height: 12),
+              const Text('친구찾기 기능이 꺼져 있어요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              const Text('프로필 설정에서 친구찾기를 켜면 친구찾기 커뮤니티에 참여할 수 있어요.', textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: () => context.push('/profile/info'), child: const Text('프로필에서 켜기')),
+            ]),
+          ),
+        ),
+      );
+    }
     final results = _results;
     return Scaffold(
       backgroundColor: AppColors.paper,

@@ -33,6 +33,7 @@ class User(Base):
     home_region: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # 프로필 "정보 수정"에서 입력하는 부가 정보 — 전부 선택 입력.
     gender: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    friend_finder_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     # 닉네임(표시용)과 별개인 실명.
     full_name: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # 알림 설정 — 둘 다 기본 켜짐. 끄면 그 종류의 알림 레코드 자체를 안 만든다.

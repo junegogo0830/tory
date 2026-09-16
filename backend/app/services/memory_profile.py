@@ -179,10 +179,11 @@ class MemoryProfileService:
                 await db.execute(select(UserBlock.blocked_id).where(UserBlock.blocker_id == user.id))
             ).all()
         }
+        enabled_ids = {row[0] for row in (await db.execute(select(User.id).where(User.friend_finder_enabled.is_(True), User.id != user.id))).all()}
         rows = await db.execute(select(MemoryAttribute).where(MemoryAttribute.user_id != user.id))
         by_user: dict[int, list[MemoryAttribute]] = {}
         for attribute in rows.scalars().all():
-            if attribute.user_id in blocked:
+            if attribute.user_id in blocked or attribute.user_id not in enabled_ids:
                 continue
             by_user.setdefault(attribute.user_id, []).append(attribute)
 
@@ -283,7 +284,7 @@ class MemoryProfileService:
         if not scores:
             return []
 
-        users = await db.execute(select(User).where(User.id.in_(scores.keys())))
+        users = await db.execute(select(User).where(User.id.in_(scores.keys()), User.friend_finder_enabled.is_(True)))
         user_map = {u.id: u for u in users.scalars().all()}
         results = [
             MemoryMatchResponse(

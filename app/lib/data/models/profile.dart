@@ -37,6 +37,7 @@ class Profile {
     this.phoneNumber,
     this.onboardingCompleted = false,
     this.hasPassword = false,
+    this.friendFinderEnabled = true,
   });
 
   final int userId;
@@ -63,6 +64,7 @@ class Profile {
   // 자체 회원가입(아이디+비밀번호) 계정이면 true. 카카오 로그인 계정은 false —
   // 비밀번호 변경 메뉴는 이 값이 true일 때만 보여준다.
   final bool hasPassword;
+  final bool friendFinderEnabled;
 
   /// 백엔드 `ProfileResponse` 스키마(snake_case)를 파싱한다.
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -84,6 +86,7 @@ class Profile {
       phoneNumber: json['phone_number'] as String?,
       onboardingCompleted: json['onboarding_completed'] as bool? ?? false,
       hasPassword: json['has_password'] as bool? ?? false,
+      friendFinderEnabled: json['friend_finder_enabled'] as bool? ?? true,
     );
   }
 }

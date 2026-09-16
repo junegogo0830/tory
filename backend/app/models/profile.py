@@ -56,6 +56,7 @@ class ProfileResponse(BaseModel):
     home_region: str | None = None
     age_group: str | None = None
     gender: str | None = None
+    friend_finder_enabled: bool = True
     full_name: str | None = None
     phone_number: str | None = None
     # 첫 로그인 온보딩(연령대/거주지/살았던 곳)을 완료했거나 건너뛰었으면 true.
@@ -72,6 +73,7 @@ class ProfileInfoUpdateRequest(BaseModel):
     gender: str | None = None
     full_name: str | None = Field(default=None, max_length=40)
     phone_number: str | None = Field(default=None, max_length=20)
+    friend_finder_enabled: bool | None = None
 
 
 class SavedCourseCreateRequest(BaseModel):

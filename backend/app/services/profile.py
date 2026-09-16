@@ -71,6 +71,7 @@ class ProfileService:
             phone_number=user.phone_number,
             onboarding_completed=user.onboarded_at is not None,
             has_password=user.password_hash is not None,
+            friend_finder_enabled=user.friend_finder_enabled,
         )
 
     async def update_info(self, db: AsyncSession, user: User, body: ProfileInfoUpdateRequest) -> User:
@@ -87,6 +88,8 @@ class ProfileService:
                 if existing is not None:
                     raise HTTPException(422, '이미 다른 계정에서 쓰고 있는 번호예요')
             user.phone_number = phone
+        if body.friend_finder_enabled is not None:
+            user.friend_finder_enabled = body.friend_finder_enabled
         await db.commit()
         await db.refresh(user)
         return user
