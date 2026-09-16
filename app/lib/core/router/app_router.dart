@@ -233,14 +233,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/kakao-restaurants',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        final lat = state.uri.queryParameters['lat'];
-        final lng = state.uri.queryParameters['lng'];
-        return KakaoRestaurantListScreen(
-          lat: lat != null ? double.parse(lat) : null,
-          lng: lng != null ? double.parse(lng) : null,
-        );
-      },
+      builder: (context, state) => KakaoRestaurantListScreen(
+        initialRegion: state.uri.queryParameters['region'],
+        initialCuisine: state.uri.queryParameters['cuisine'],
+      ),
     ),
     GoRoute(
       path: '/nearby-map',

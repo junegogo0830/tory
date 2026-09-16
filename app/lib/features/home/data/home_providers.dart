@@ -56,6 +56,16 @@ final kakaoRestaurantsNearbyProvider =
   return repo.getKakaoRestaurantsNearby(lat: coords.lat, lng: coords.lng);
 });
 
+/// GPS "내 주변" 대신 사용자가 직접 고르는 7개 광역권.
+const List<String> kakaoRestaurantRegions = ['서울', '부산', '경기', '대전', '전라', '경상', '강원'];
+
+/// 카카오맵 기반 맛집 카드 "지역" 모드용 — 지역이 바뀔 때만 다시 조회한다(백엔드가
+/// 지역별로 하루 단위 캐싱까지 하므로, 카테고리 토글은 이 결과를 로컬에서 필터링).
+final kakaoRestaurantsByRegionProvider = FutureProvider.family<List<KakaoRestaurant>, String>((ref, region) {
+  final repo = ref.watch(discoveryRepositoryProvider);
+  return repo.getKakaoRestaurantsByRegion(region);
+});
+
 /// 둘러보기 탭 "다른 사람들이 둘러본 골목" — 아직 아무도 안 찜했으면 빈 리스트.
 final popularLocationsProvider = FutureProvider<List<HometownLocation>>((ref) {
   final repo = ref.watch(discoveryRepositoryProvider);

@@ -38,6 +38,12 @@ class User(Base):
     # 알림 설정 — 둘 다 기본 켜짐. 끄면 그 종류의 알림 레코드 자체를 안 만든다.
     notify_on_comment: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     notify_on_like: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # 홈 화면 "이어보기" — 마지막으로 연 코스 하나만 기억한다(히스토리 전체가
+    # 아니라 가장 최근 것만 필요해서 User에 바로 둔다). 코스 상세 화면을 열
+    # 때마다 덮어쓴다.
+    last_viewed_course_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    last_viewed_course_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_viewed_course_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     saved_locations: Mapped[list["SavedLocation"]] = relationship(

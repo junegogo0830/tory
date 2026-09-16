@@ -89,3 +89,20 @@ class SavedCourseResponse(BaseModel):
     thumbnail_url: str | None = None
     place_count: int
     saved_at: datetime.datetime
+
+
+class RecordCourseViewRequest(BaseModel):
+    course_type: str = Field(pattern="^(generated|custom)$")
+    course_id: str = Field(min_length=1, max_length=50)
+
+
+class RecentCourseResponse(BaseModel):
+    """홈 "이어보기" — 마지막으로 열어본 코스 하나."""
+
+    course_type: str  # "generated" | "custom"
+    course_id: str
+    title: str
+    category: str | None = None
+    thumbnail_url: str | None = None
+    place_count: int
+    viewed_at: datetime.datetime

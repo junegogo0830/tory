@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -14,13 +13,15 @@ import '../../../../core/utils/kakao_map_links.dart';
 import '../../../../data/models/kakao_restaurant.dart';
 import '../../../../shared/widgets/app_network_image.dart';
 import '../../data/home_providers.dart';
+import 'restaurant_cuisine_filter.dart';
 
-enum _KakaoRestaurantMode { nationwide, nearby }
+enum _KakaoRestaurantMode { nationwide, region }
 
-/// 카카오맵 기반 맛집 추천 카드 — "전국"/"내 주변" 두 버튼으로 내용이 바뀌고,
-/// 한 번에 하나씩 애니메이션처럼 넘어간다. 카카오 로컬 API 자체엔 사진이 없어서,
-/// 같은 이름으로 TourAPI에 등록된 사진이 있으면 그걸 쓰고, 없으면 카테고리별
-/// 이모지 배지로 밋밋해 보이지 않게 했다.
+/// 카카오맵 기반 맛집 추천 카드 — "전국"/"지역" 두 버튼으로 내용이 바뀐다.
+/// "지역"은 GPS 대신 사용자가 직접 고르는 7개 광역권을 히어로 배너처럼 좌우로
+/// 넘겨보고, 그 안에서 카테고리 토글(한식/중식/일식/양식/디저트)로 좁힌다.
+/// 카카오 로컬 API 자체엔 사진이 없어서, 같은 이름으로 TourAPI에 등록된 사진이
+/// 있으면 그걸 쓰고, 없으면 카테고리별 이모지 배지로 밋밋해 보이지 않게 했다.
 class KakaoRestaurantCard extends ConsumerStatefulWidget {
   const KakaoRestaurantCard({super.key});
 
@@ -30,15 +31,21 @@ class KakaoRestaurantCard extends ConsumerStatefulWidget {
 
 class _KakaoRestaurantCardState extends ConsumerState<KakaoRestaurantCard> {
   _KakaoRestaurantMode _mode = _KakaoRestaurantMode.nationwide;
-  Position? _position;
-  bool _isLocating = false;
-  String? _locationError;
+  final _regionController = PageController();
+  int _regionIndex = 0;
+  String? _cuisine; // null == 전체
 
   Timer? _timer;
   int _index = 0;
   int _itemCount = 0;
 
+  String get _region => kakaoRestaurantRegions[_regionIndex];
+
   void _ensureTimer(int itemCount) {
+    // 이 콜백은 addPostFrameCallback으로 예약돼서, 위젯이 그 사이 dispose된
+    // 뒤에도 뒤늦게 호출될 수 있다 — 그때 새 Timer를 또 만들면 아무도 취소
+    // 안 하는 좀비 타이머가 남는다.
+    if (!mounted) return;
     if (itemCount == _itemCount && _timer != null) return;
     _itemCount = itemCount;
     _index = 0;
@@ -49,41 +56,14 @@ class _KakaoRestaurantCardState extends ConsumerState<KakaoRestaurantCard> {
     });
   }
 
-  Future<void> _selectNearby() async {
-    setState(() => _mode = _KakaoRestaurantMode.nearby);
-    if (_position != null || _isLocating) return;
-
-    setState(() {
-      _isLocating = true;
-      _locationError = null;
-    });
-    try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        setState(() => _locationError = '위치 권한이 필요해요');
-        return;
-      }
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() => _locationError = '기기의 위치 서비스를 켜주세요');
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
-      );
-      if (mounted) setState(() => _position = position);
-    } catch (_) {
-      if (mounted) setState(() => _locationError = '위치를 가져오지 못했어요');
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
-    }
+  void _goToRegion(int index) {
+    _regionController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _regionController.dispose();
     super.dispose();
   }
 
@@ -105,30 +85,57 @@ class _KakaoRestaurantCardState extends ConsumerState<KakaoRestaurantCard> {
               Expanded(
                 child: Text('카카오맵 맛집 추천', style: AppTypography.headline.copyWith(fontWeight: FontWeight.w700)),
               ),
-              // 전국/내 주변 — 실제 GUI의 segmented control처럼 하나의 트랙
-              // 안에서 좌우로 붙여 하나의 컨트롤처럼 보이게 한다.
               _Segmented(
                 left: '전국',
-                right: '내 주변',
+                right: '지역',
                 selectedLeft: _mode == _KakaoRestaurantMode.nationwide,
                 onSelectLeft: () => setState(() => _mode = _KakaoRestaurantMode.nationwide),
-                onSelectRight: _selectNearby,
+                onSelectRight: () => setState(() => _mode = _KakaoRestaurantMode.region),
               ),
             ],
           ),
+          if (_mode == _KakaoRestaurantMode.region) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _ArrowButton(icon: Icons.chevron_left, onTap: _regionIndex > 0 ? () => _goToRegion(_regionIndex - 1) : null),
+                Expanded(
+                  child: SizedBox(
+                    height: 28,
+                    child: PageView.builder(
+                      controller: _regionController,
+                      itemCount: kakaoRestaurantRegions.length,
+                      onPageChanged: (i) => setState(() => _regionIndex = i),
+                      itemBuilder: (context, i) => Center(
+                        child: Text(
+                          kakaoRestaurantRegions[i],
+                          style: AppTypography.subhead.copyWith(fontWeight: FontWeight.w700, color: AppColors.accentDeep),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                _ArrowButton(
+                  icon: Icons.chevron_right,
+                  onTap: _regionIndex < kakaoRestaurantRegions.length - 1 ? () => _goToRegion(_regionIndex + 1) : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            RestaurantCuisineFilter(selected: _cuisine, onSelect: (c) => setState(() => _cuisine = c)),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             height: 108,
-            child: _mode == _KakaoRestaurantMode.nationwide ? _buildNationwide() : _buildNearby(),
+            child: _mode == _KakaoRestaurantMode.nationwide ? _buildNationwide() : _buildRegion(),
           ),
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () {
-                final position = _position;
-                final path = _mode == _KakaoRestaurantMode.nearby && position != null
-                    ? '/kakao-restaurants?lat=${position.latitude}&lng=${position.longitude}'
+                final path = _mode == _KakaoRestaurantMode.region
+                    ? '/kakao-restaurants?region=$_region${_cuisine != null ? '&cuisine=$_cuisine' : ''}'
                     : '/kakao-restaurants';
                 context.push(path);
               },
@@ -160,41 +167,56 @@ class _KakaoRestaurantCardState extends ConsumerState<KakaoRestaurantCard> {
         index: _index,
         onCountResolved: _ensureTimer,
         emptyMessage: '전국 맛집 정보를 불러오지 못했어요',
-        isNearby: false,
       ),
       loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
       error: (_, _) => Center(child: Text('불러오지 못했어요', style: AppTypography.footnote)),
     );
   }
 
-  Widget _buildNearby() {
-    if (_isLocating) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.accent));
-    }
-    if (_locationError != null) {
-      return Center(child: Text(_locationError!, style: AppTypography.footnote));
-    }
-    final position = _position;
-    if (position == null) return const SizedBox.shrink();
-
-    final restaurantsAsync = ref.watch(
-      kakaoRestaurantsNearbyProvider((lat: position.latitude, lng: position.longitude)),
-    );
+  Widget _buildRegion() {
+    final restaurantsAsync = ref.watch(kakaoRestaurantsByRegionProvider(_region));
     return restaurantsAsync.when(
-      data: (restaurants) => _RestaurantTicker(
-        restaurants: restaurants,
-        index: _index,
-        onCountResolved: _ensureTimer,
-        emptyMessage: '반경 5km 안에 등록된 맛집이 없어요',
-        isNearby: true,
-      ),
+      data: (restaurants) {
+        final filtered = _cuisine == null ? restaurants : restaurants.where((r) => r.cuisine == _cuisine).toList();
+        return _RestaurantTicker(
+          restaurants: filtered,
+          index: _index,
+          onCountResolved: _ensureTimer,
+          emptyMessage: '$_region에 등록된 맛집이 없어요',
+        );
+      },
       loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
       error: (_, _) => Center(child: Text('불러오지 못했어요', style: AppTypography.footnote)),
     );
   }
 }
 
-/// "전국 / 내 주변" 두 옵션을 한 트랙 안에 이어붙인 segmented control.
+class _ArrowButton extends StatelessWidget {
+  const _ArrowButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(99),
+      child: Container(
+        width: 26,
+        height: 26,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.fieldBg,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 16, color: onTap == null ? AppColors.inkTertiary : AppColors.ink),
+      ),
+    );
+  }
+}
+
+/// "전국 / 지역" 두 옵션을 한 트랙 안에 이어붙인 segmented control.
 class _Segmented extends StatelessWidget {
   const _Segmented({
     required this.left,
@@ -264,14 +286,12 @@ class _RestaurantTicker extends StatelessWidget {
     required this.index,
     required this.onCountResolved,
     required this.emptyMessage,
-    required this.isNearby,
   });
 
   final List<KakaoRestaurant> restaurants;
   final int index;
   final ValueChanged<int> onCountResolved;
   final String emptyMessage;
-  final bool isNearby;
 
   @override
   Widget build(BuildContext context) {
@@ -292,17 +312,16 @@ class _RestaurantTicker extends StatelessWidget {
             child: child,
           ),
         ),
-        child: _RestaurantSingle(key: ValueKey(item.id), item: item, isNearby: isNearby),
+        child: _RestaurantSingle(key: ValueKey(item.id), item: item),
       ),
     );
   }
 }
 
 class _RestaurantSingle extends StatelessWidget {
-  const _RestaurantSingle({super.key, required this.item, required this.isNearby});
+  const _RestaurantSingle({super.key, required this.item});
 
   final KakaoRestaurant item;
-  final bool isNearby;
 
   Widget _emojiBadge() {
     return Container(
@@ -341,8 +360,6 @@ class _RestaurantSingle extends StatelessWidget {
       onTap: hasPlacePage ? _openPlacePage : null,
       child: Container(
         padding: const EdgeInsets.all(12),
-        // 바깥 카드와 같은 surface 색 + 헤어라인 테두리로만 구분한다 — 이전엔
-        // paper(다른 톤) 배경을 써서 "카드 안에 색이 다른 카드"처럼 어색해 보였다.
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.tile),
@@ -380,42 +397,22 @@ class _RestaurantSingle extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: pastelForFoodCategory(item.category),
-                            borderRadius: BorderRadius.circular(AppRadius.tag),
-                          ),
-                          child: Text(
-                            item.category,
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.accentDeep,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: pastelForFoodCategory(item.category),
+                      borderRadius: BorderRadius.circular(AppRadius.tag),
+                    ),
+                    child: Text(
+                      item.category,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.accentDeep,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
                       ),
-                      // "내 위치에서"는 실제 GPS 기준 거리인 "내 주변" 모드에서만
-                      // 뜻이 통한다 — "전국" 모드의 distance는 도시 중심 좌표
-                      // 기준이라 여기서 보여주면 오해를 준다.
-                      if (isNearby && item.distanceM != null) ...[
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            '내 위치에서 ${item.distanceM}m',
-                            style: AppTypography.caption.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(height: 3),
                   Text(

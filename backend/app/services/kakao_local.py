@@ -121,8 +121,9 @@ class KakaoLocalService:
         radius_m: int = 5000,
         limit: int = 15,
         sort: str = "distance",
+        category_group_code: str = "FD6",
     ) -> list[dict]:
-        """좌표 반경 내 실제 음식점(카테고리 코드 FD6)을 반환한다.
+        """좌표 반경 내 실제 음식점(기본 카테고리 코드 FD6, 카페는 CE7)을 반환한다.
 
         카카오 로컬 API 응답엔 평점/리뷰 수/사진 필드가 아예 없다(실제 호출로
         확인 — id/place_name/category_name/address_name/road_address_name/
@@ -131,6 +132,10 @@ class KakaoLocalService:
         기본값 — "내 주변"처럼 실제로 가까운 곳이 우선이어야 할 때)을 호출부가
         고른다. 카카오는 TourAPI보다 등록 밀도가 훨씬 높아서(같은 반경 기준
         실측 최대 10배 이상) "카카오맵 기반" 맛집 카드의 데이터 소스로 쓴다.
+
+        `category_name`은 잘라내지 않고 원문 그대로("음식점 > 한식 > 육류,고기"
+        같은 계층 전체) 돌려준다 — 호출부(discovery.py)가 이 전체 경로에서
+        "한식/중식/일식/양식/카페" 같은 큰 분류를 뽑아 쓴다.
         """
         if not settings.kakao_rest_api_key:
             return []
@@ -141,7 +146,7 @@ class KakaoLocalService:
                     f"{self._BASE_URL}/category.json",
                     headers={"Authorization": f"KakaoAK {settings.kakao_rest_api_key}"},
                     params={
-                        "category_group_code": "FD6",
+                        "category_group_code": category_group_code,
                         "x": longitude,
                         "y": latitude,
                         "radius": radius_m,
@@ -152,7 +157,7 @@ class KakaoLocalService:
                 response.raise_for_status()
                 body = response.json()
         except (httpx.HTTPError, ValueError):
-            logger.exception("Kakao category(FD6) search failed for (%s, %s)", latitude, longitude)
+            logger.exception("Kakao category(%s) search failed for (%s, %s)", category_group_code, latitude, longitude)
             return []
 
         results: list[dict] = []
@@ -161,11 +166,13 @@ class KakaoLocalService:
                 lat, lng = float(doc["y"]), float(doc["x"])
             except (KeyError, ValueError):
                 continue
+            category_name = doc.get("category_name") or ""
             results.append(
                 {
                     "id": doc.get("id") or "",
                     "name": doc.get("place_name") or "",
-                    "category": (doc.get("category_name") or "").split(">")[-1].strip() or "음식점",
+                    "category": category_name.split(">")[-1].strip() or "음식점",
+                    "category_path": category_name,
                     "address": doc.get("road_address_name") or doc.get("address_name", ""),
                     "distance_m": int(doc["distance"]) if doc.get("distance") else None,
                     "latitude": lat,

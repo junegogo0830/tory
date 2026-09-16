@@ -8,7 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.config import settings
 from ..db.models import CommunityPost, CompletedCourse, CustomCourse, SavedCourse, SavedLocation, User, UserCourse
 from ..models.course import CourseResponse
-from ..models.profile import MyMemoryResponse, ProfileInfoUpdateRequest, ProfileResponse, SavedCourseResponse, SavedLocationSummary
+from ..models.profile import (
+    MyMemoryResponse,
+    ProfileInfoUpdateRequest,
+    ProfileResponse,
+    RecentCourseResponse,
+    SavedCourseResponse,
+    SavedLocationSummary,
+)
 from .custom_course import CustomCourseService
 from .photo_upload import save_uploaded_photo
 from .recommendation import RecommendationService
@@ -190,6 +197,14 @@ class ProfileService:
         )
         return row is not None
 
+    async def _custom_course_fields(self, db: AsyncSession, course_id: str) -> tuple[str, str | None, str | None, int] | None:
+        try:
+            course = await self._custom_course_service.detail(db, int(course_id))
+        except HTTPException:
+            return None  # 삭제된 커스텀 코스는 조용히 뺀다.
+        thumbnail = next((p.image_url for p in course.places if p.image_url), None)
+        return course.title, course.category, thumbnail, len(course.places)
+
     async def list_saved_courses(self, db: AsyncSession, user: User) -> list[SavedCourseResponse]:
         rows = await db.execute(
             select(SavedCourse).where(SavedCourse.user_id == user.id).order_by(desc(SavedCourse.created_at))
@@ -200,34 +215,57 @@ class ProfileService:
                 if saved.course_json is None:
                     continue
                 course = CourseResponse.model_validate_json(saved.course_json)
-                results.append(
-                    SavedCourseResponse(
-                        course_type="generated",
-                        course_id=saved.course_id,
-                        title=course.title,
-                        category=course.category,
-                        thumbnail_url=course.image_url,
-                        place_count=len(course.stops),
-                        saved_at=saved.created_at,
-                    )
-                )
+                fields = (course.title, course.category, course.image_url, len(course.stops))
             else:
-                try:
-                    course = await self._custom_course_service.detail(db, int(saved.course_id))
-                except HTTPException:
-                    continue  # 삭제된 커스텀 코스는 조용히 뺀다.
-                results.append(
-                    SavedCourseResponse(
-                        course_type="custom",
-                        course_id=saved.course_id,
-                        title=course.title,
-                        category=course.category,
-                        thumbnail_url=next((p.image_url for p in course.places if p.image_url), None),
-                        place_count=len(course.places),
-                        saved_at=saved.created_at,
-                    )
+                fields = await self._custom_course_fields(db, saved.course_id)
+                if fields is None:
+                    continue
+            title, category, thumbnail_url, place_count = fields
+            results.append(
+                SavedCourseResponse(
+                    course_type=saved.course_type,
+                    course_id=saved.course_id,
+                    title=title,
+                    category=category,
+                    thumbnail_url=thumbnail_url,
+                    place_count=place_count,
+                    saved_at=saved.created_at,
                 )
+            )
         return results
+
+    async def record_course_view(self, db: AsyncSession, user: User, course_type: str, course_id: str) -> None:
+        """홈 "이어보기"용 — 코스 상세 화면을 열 때마다 마지막으로 본 코스를 덮어쓴다."""
+        if course_type not in ("generated", "custom"):
+            raise HTTPException(422, "올바르지 않은 코스 종류예요")
+        user.last_viewed_course_type = course_type
+        user.last_viewed_course_id = course_id
+        user.last_viewed_course_at = datetime.datetime.now(datetime.timezone.utc)
+        await db.commit()
+
+    async def get_recent_course(self, db: AsyncSession, user: User) -> RecentCourseResponse | None:
+        if user.last_viewed_course_type is None or user.last_viewed_course_id is None:
+            return None
+
+        if user.last_viewed_course_type == "generated":
+            course = await self._recommendation_service.get_course_by_id(user.last_viewed_course_id)
+            fields = (course.title, course.category, course.image_url, len(course.stops)) if course else None
+        else:
+            fields = await self._custom_course_fields(db, user.last_viewed_course_id)
+
+        if fields is None:
+            return None  # 캐시 만료(생성 코스) 또는 삭제된 커스텀 코스 — 조용히 숨긴다.
+
+        title, category, thumbnail_url, place_count = fields
+        return RecentCourseResponse(
+            course_type=user.last_viewed_course_type,
+            course_id=user.last_viewed_course_id,
+            title=title,
+            category=category,
+            thumbnail_url=thumbnail_url,
+            place_count=place_count,
+            viewed_at=user.last_viewed_course_at,
+        )
 
     async def get_my_courses(self, db: AsyncSession, user: User, *, limit: int = 30, offset: int = 0) -> list[CourseResponse]:
         rows = await db.execute(

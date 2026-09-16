@@ -45,3 +45,10 @@ async def get_kakao_restaurants_nationwide() -> list[KakaoRestaurantResponse]:
 @router.get("/kakao-restaurants/nearby", response_model=list[KakaoRestaurantResponse])
 async def get_kakao_restaurants_nearby(lat: float, lng: float) -> list[KakaoRestaurantResponse]:
     return await _discovery_service.get_kakao_restaurants_nearby(latitude=lat, longitude=lng)
+
+
+@router.get("/kakao-restaurants/by-region", response_model=list[KakaoRestaurantResponse])
+async def get_kakao_restaurants_by_region(region: str) -> list[KakaoRestaurantResponse]:
+    """지역 캐러셀용 — 음식점+카페를 한 번에 모아 각 항목에 큰 분류(cuisine)를
+    붙여 반환한다. 카테고리 토글은 프론트에서 이 응답을 그대로 필터링한다."""
+    return await _discovery_service.get_kakao_restaurants_by_region(region)

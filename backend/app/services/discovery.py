@@ -37,6 +37,38 @@ _MAJOR_CITY_COORDS: dict[str, tuple[float, float]] = {
     "제주": (33.4996, 126.5312),
 }
 _KAKAO_RESTAURANTS_PER_CITY = 5
+
+# 지역 캐러셀("내 주변" GPS를 대체) — 사용자가 직접 고르는 7개 광역권 대표 좌표.
+# 도 단위(경기/전라/경상/강원)는 그 지역의 중심에 가까운 주요 도시로 앵커링한다.
+_REGION_COORDS: dict[str, tuple[float, float]] = {
+    "서울": (37.5665, 126.9780),
+    "부산": (35.1587, 129.0603),
+    "경기": (37.2911, 127.0089),  # 수원
+    "대전": (36.3504, 127.3845),
+    "전라": (35.8242, 127.1480),  # 전주
+    "경상": (35.8714, 128.6014),  # 대구
+    "강원": (37.8228, 128.1555),  # 춘천
+}
+_KAKAO_RESTAURANTS_BY_REGION_CACHE_KEY_PREFIX = "discovery:kakao-restaurants:region:"
+
+# 카카오 category_name은 "음식점 > 한식 > 육류,고기"처럼 계층 전체가 온다 —
+# 그 경로 안에 이 키워드가 하나라도 있으면 해당 큰 분류로 묶는다. 순서가
+# 중요하다(예: "카페"가 "디저트"보다 앞서면 디저트카페가 카페로 먼저 잡힌다).
+_CUISINE_KEYWORDS: list[tuple[str, str]] = [
+    ("디저트", "디저트"),
+    ("한식", "한식"),
+    ("중식", "중식"),
+    ("일식", "일식"),
+    ("양식", "양식"),
+    ("카페", "디저트"),
+]
+
+
+def _bucket_cuisine(category_path: str) -> str:
+    for keyword, cuisine in _CUISINE_KEYWORDS:
+        if keyword in category_path:
+            return cuisine
+    return "기타"
 # "내 주변"은 실제로 걸어갈 수 있는 거리를 우선한다 — 1.2km(도보 15분 안팎)부터
 # 시작해서, 그 반경에 너무 적으면(콜드스팟 등) 점점 넓혀서 빈 화면을 피한다.
 _KAKAO_NEARBY_RADII_M = [1200, 2500, 5000]
@@ -237,6 +269,7 @@ class DiscoveryService:
                 id=place["id"],
                 name=place["name"],
                 category=place["category"],
+                cuisine=_bucket_cuisine(place.get("category_path", "")),
                 address=place["address"],
                 distance_m=place.get("distance_m"),
                 image_url=image_url,
@@ -247,6 +280,45 @@ class DiscoveryService:
             )
             for place, image_url in zip(places, image_urls, strict=True)
         ]
+
+    async def get_kakao_restaurants_by_region(self, region: str) -> list[KakaoRestaurantResponse]:
+        """지역 캐러셀용 — 음식점(FD6)+카페(CE7)를 한 번에 모아서 반환하고,
+        각 항목에 큰 분류(cuisine)를 붙여둔다. 카테고리 토글은 이 한 번의
+        응답을 프론트에서 그대로 필터링해서 쓴다(토글마다 다시 조회하지 않는다).
+        """
+        coords = _REGION_COORDS.get(region)
+        if coords is None:
+            return []
+
+        cache_key = f"{_KAKAO_RESTAURANTS_BY_REGION_CACHE_KEY_PREFIX}{region}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return [KakaoRestaurantResponse.model_validate(item) for item in json.loads(cached)]
+
+        lat, lng = coords
+        food, cafe = await asyncio.gather(
+            self._kakao_local_service.search_restaurants(
+                latitude=lat, longitude=lng, radius_m=8000, limit=15, sort="accuracy", category_group_code="FD6"
+            ),
+            self._kakao_local_service.search_restaurants(
+                latitude=lat, longitude=lng, radius_m=8000, limit=15, sort="accuracy", category_group_code="CE7"
+            ),
+        )
+        seen: set[str] = set()
+        places: list[dict] = []
+        for place in [*food, *cafe]:
+            if not place.get("id") or place["id"] in seen:
+                continue
+            seen.add(place["id"])
+            places.append(place)
+
+        restaurants = await self._to_responses(places)
+        await cache_set(
+            cache_key,
+            json.dumps([item.model_dump() for item in restaurants]),
+            ex=_CACHE_TTL_SECONDS,
+        )
+        return restaurants
 
     async def get_popular_locations(
         self, db: AsyncSession, *, limit: int = 10

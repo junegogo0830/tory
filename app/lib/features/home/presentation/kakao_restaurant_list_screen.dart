@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -11,70 +10,36 @@ import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_network_image.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../data/home_providers.dart';
+import 'widgets/restaurant_cuisine_filter.dart';
 
-enum _Mode { nationwide, nearby }
+enum _Mode { nationwide, region }
 
-/// 카카오맵 기반 맛집 "자세히보기" 화면. lat/lng이 주어지면 내 주변 모드로
-/// 열리고, 위에 붙은 전국/내 주변 segmented control로 그 자리에서 바로
-/// 전환할 수 있다(내 주변으로 바꿨는데 좌표가 없으면 그때 위치를 받아온다).
-///
-/// 카카오 로컬 API 자체엔 평점·리뷰 수가 없어 우리가 "몇 점/몇 개 리뷰"를
-/// 보여줄 수 없다 — 대신 카드를 누르면 실제 평점·리뷰가 있는 카카오맵 원본
-/// 페이지로 이동한다. 전화번호/좌표가 있으면 바로 걸거나 길찾기로 넘어간다.
+/// 카카오맵 기반 맛집 "전체보기" 화면 — 전국 전체 풀, 또는 지역(서울/부산/경기/
+/// 대전/전라/경상/강원)×카테고리(한식/중식/일식/양식/디저트)로 정리된 전체
+/// 데이터를 여기서 다 볼 수 있다. GPS는 쓰지 않는다.
 class KakaoRestaurantListScreen extends ConsumerStatefulWidget {
-  const KakaoRestaurantListScreen({super.key, this.lat, this.lng});
+  const KakaoRestaurantListScreen({super.key, this.initialRegion, this.initialCuisine});
 
-  final double? lat;
-  final double? lng;
+  final String? initialRegion;
+  final String? initialCuisine;
 
   @override
   ConsumerState<KakaoRestaurantListScreen> createState() => _KakaoRestaurantListScreenState();
 }
 
 class _KakaoRestaurantListScreenState extends ConsumerState<KakaoRestaurantListScreen> {
-  late _Mode _mode = widget.lat != null && widget.lng != null ? _Mode.nearby : _Mode.nationwide;
-  Position? _position;
-  bool _isLocating = false;
-  String? _locationError;
+  late _Mode _mode = widget.initialRegion != null ? _Mode.region : _Mode.nationwide;
+  late String _region = widget.initialRegion ?? kakaoRestaurantRegions.first;
+  String? _cuisine;
 
-  Future<void> _selectNearby() async {
-    setState(() => _mode = _Mode.nearby);
-    if (widget.lat != null && widget.lng != null) return;
-    if (_position != null || _isLocating) return;
-
-    setState(() {
-      _isLocating = true;
-      _locationError = null;
-    });
-    try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        setState(() => _locationError = '위치 권한이 필요해요');
-        return;
-      }
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() => _locationError = '기기의 위치 서비스를 켜주세요');
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
-      );
-      if (mounted) setState(() => _position = position);
-    } catch (_) {
-      if (mounted) setState(() => _locationError = '위치를 가져오지 못했어요');
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
-    }
+  @override
+  void initState() {
+    super.initState();
+    _cuisine = widget.initialCuisine;
   }
 
   @override
   Widget build(BuildContext context) {
-    final lat = widget.lat ?? _position?.latitude;
-    final lng = widget.lng ?? _position?.longitude;
-
     return Scaffold(
       backgroundColor: AppColors.paper,
       appBar: AppBar(title: const Text('맛집 추천')),
@@ -91,18 +56,62 @@ class _KakaoRestaurantListScreenState extends ConsumerState<KakaoRestaurantListS
                       Expanded(child: Text('카카오맵 맛집 추천', style: AppTypography.sectionTitle)),
                       _Segmented(
                         left: '전국',
-                        right: '내 주변',
+                        right: '지역',
                         selectedLeft: _mode == _Mode.nationwide,
                         onSelectLeft: () => setState(() => _mode = _Mode.nationwide),
-                        onSelectRight: _selectNearby,
+                        onSelectRight: () => setState(() => _mode = _Mode.region),
                       ),
                     ],
                   ),
                 ),
+                if (_mode == _Mode.region) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 34,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: kakaoRestaurantRegions.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 6),
+                      itemBuilder: (context, i) {
+                        final region = kakaoRestaurantRegions[i];
+                        final isSelected = region == _region;
+                        return InkWell(
+                          onTap: () => setState(() => _region = region),
+                          borderRadius: BorderRadius.circular(99),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.accent : AppColors.fieldBg,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              region,
+                              style: AppTypography.subhead.copyWith(
+                                color: isSelected ? AppColors.surface : AppColors.inkSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: RestaurantCuisineFilter(selected: _cuisine, onSelect: (c) => setState(() => _cuisine = c)),
+                  ),
+                ],
+                const SizedBox(height: 8),
                 Expanded(
                   child: _mode == _Mode.nationwide
                       ? _RestaurantList(restaurantsAsync: ref.watch(kakaoRestaurantsNationwideProvider))
-                      : _buildNearby(lat, lng),
+                      : _RestaurantList(
+                          restaurantsAsync: ref.watch(kakaoRestaurantsByRegionProvider(_region)),
+                          cuisineFilter: _cuisine,
+                        ),
                 ),
               ],
             ),
@@ -111,27 +120,21 @@ class _KakaoRestaurantListScreenState extends ConsumerState<KakaoRestaurantListS
       ),
     );
   }
-
-  Widget _buildNearby(double? lat, double? lng) {
-    if (_isLocating) return const Center(child: CircularProgressIndicator(color: AppColors.accent));
-    if (_locationError != null) {
-      return Center(child: Text(_locationError!, style: AppTypography.subhead));
-    }
-    if (lat == null || lng == null) return const SizedBox.shrink();
-    return _RestaurantList(restaurantsAsync: ref.watch(kakaoRestaurantsNearbyProvider((lat: lat, lng: lng))));
-  }
 }
 
 class _RestaurantList extends StatelessWidget {
-  const _RestaurantList({required this.restaurantsAsync});
+  const _RestaurantList({required this.restaurantsAsync, this.cuisineFilter});
 
   final AsyncValue<List<KakaoRestaurant>> restaurantsAsync;
+  final String? cuisineFilter;
 
   @override
   Widget build(BuildContext context) {
     return restaurantsAsync.when(
       data: (restaurants) {
-        if (restaurants.isEmpty) {
+        final filtered =
+            cuisineFilter == null ? restaurants : restaurants.where((r) => r.cuisine == cuisineFilter).toList();
+        if (filtered.isEmpty) {
           return const EmptyState(
             icon: Icons.restaurant_outlined,
             title: '맛집을 찾지 못했어요',
@@ -145,9 +148,9 @@ class _RestaurantList extends StatelessWidget {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  for (var i = 0; i < restaurants.length; i++) ...[
-                    _RestaurantRow(item: restaurants[i]),
-                    if (i != restaurants.length - 1)
+                  for (var i = 0; i < filtered.length; i++) ...[
+                    _RestaurantRow(item: filtered[i]),
+                    if (i != filtered.length - 1)
                       Divider(height: 1, indent: 14, endIndent: 14, color: AppColors.hairline),
                   ],
                 ],
@@ -162,7 +165,7 @@ class _RestaurantList extends StatelessWidget {
   }
 }
 
-/// "전국 / 내 주변" 두 옵션을 한 트랙 안에 이어붙인 segmented control —
+/// "전국 / 지역" 두 옵션을 한 트랙 안에 이어붙인 segmented control —
 /// 홈 화면의 카카오맵 맛집 추천 카드와 같은 컴포넌트.
 class _Segmented extends StatelessWidget {
   const _Segmented({
@@ -297,7 +300,7 @@ class _RestaurantRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      item.distanceM != null ? '${item.address} · ${item.distanceM}m' : item.address,
+                      item.address,
                       style: AppTypography.footnote,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

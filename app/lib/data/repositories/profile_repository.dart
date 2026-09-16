@@ -3,6 +3,7 @@ import 'package:http_parser/http_parser.dart';
 import '../api/api_client.dart';
 import '../models/my_memory.dart';
 import '../models/profile.dart';
+import '../models/recent_course.dart';
 import '../models/tour_course.dart';
 
 /// 로그인한 사용자의 프로필 레포지토리. 백엔드 `/api/profile`을 호출한다.
@@ -81,6 +82,21 @@ class ProfileRepository {
       data: {'gender': gender, 'full_name': fullName, 'phone_number': phoneNumber},
     );
     return Profile.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// 홈 "이어보기" — 마지막으로 본 코스가 없으면 null.
+  Future<RecentCourse?> getRecentCourse() async {
+    final response = await _apiClient.dio.get('/api/profile/recent-course');
+    if (response.data == null) return null;
+    return RecentCourse.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// 코스 상세 화면을 열 때마다 호출 — 마지막으로 본 코스를 덮어쓴다.
+  Future<void> recordCourseView({required String courseType, required String courseId}) async {
+    await _apiClient.dio.put(
+      '/api/profile/recent-course',
+      data: {'course_type': courseType, 'course_id': courseId},
+    );
   }
 
   Future<void> updatePhoto({

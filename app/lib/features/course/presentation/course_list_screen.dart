@@ -11,7 +11,7 @@ import '../../../data/models/tour_course.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 import '../data/course_providers.dart';
-import 'widgets/nearby_course_card.dart';
+import 'widgets/recent_course_card.dart';
 import 'widgets/region_picker_sheet.dart';
 
 Widget _courseImage(TourCourse course, {required BoxFit fit}) {
@@ -97,7 +97,7 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                       ],
                     ),
                     const SizedBox(height: 22),
-                    const NearbyCourseCard(),
+                    const RecentCourseCard(),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,

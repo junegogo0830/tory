@@ -11,6 +11,8 @@ from ...models.profile import (
     OnboardingRequest,
     ProfileInfoUpdateRequest,
     ProfileResponse,
+    RecentCourseResponse,
+    RecordCourseViewRequest,
 )
 from ...services.auth import AuthService
 from ...services.profile import ProfileService
@@ -67,6 +69,24 @@ async def get_my_courses(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[CourseResponse]:
     return await _profile_service.get_my_courses(db, user, limit=limit, offset=offset)
+
+
+@router.get("/recent-course", response_model=RecentCourseResponse | None)
+async def get_recent_course(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)
+) -> RecentCourseResponse | None:
+    """홈 "이어보기" 카드 — 마지막으로 열어본 코스가 없으면 null."""
+    return await _profile_service.get_recent_course(db, user)
+
+
+@router.put("/recent-course", status_code=status.HTTP_204_NO_CONTENT)
+async def record_course_view(
+    body: RecordCourseViewRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """코스 상세 화면을 열 때마다 호출 — 마지막으로 본 코스를 덮어쓴다."""
+    await _profile_service.record_course_view(db, user, body.course_type, body.course_id)
 
 
 @router.patch("/onboarding", response_model=ProfileResponse)

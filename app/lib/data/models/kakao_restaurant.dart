@@ -8,6 +8,7 @@ class KakaoRestaurant {
     required this.id,
     required this.name,
     required this.category,
+    this.cuisine = '기타',
     required this.address,
     this.distanceM,
     this.imageUrl,
@@ -20,6 +21,8 @@ class KakaoRestaurant {
   final String id;
   final String name;
   final String category;
+  // 한식/중식/일식/양식/디저트/기타 — 지역 캐러셀 카테고리 토글용 큰 분류.
+  final String cuisine;
   final String address;
   final int? distanceM;
   final String? imageUrl;
@@ -35,6 +38,7 @@ class KakaoRestaurant {
       id: json['id'] as String,
       name: json['name'] as String,
       category: json['category'] as String,
+      cuisine: json['cuisine'] as String? ?? '기타',
       address: json['address'] as String,
       distanceM: json['distance_m'] as int?,
       imageUrl: json['image_url'] as String?,

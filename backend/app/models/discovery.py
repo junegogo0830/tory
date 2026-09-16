@@ -37,6 +37,9 @@ class KakaoRestaurantResponse(BaseModel):
     id: str
     name: str
     category: str
+    # 한식/중식/일식/양식/디저트/기타로 뭉뚱그린 큰 분류 — 지역 캐러셀의 카테고리
+    # 토글이 쓴다.
+    cuisine: str = "기타"
     address: str
     distance_m: int | None = None
     image_url: str | None = None
