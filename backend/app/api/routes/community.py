@@ -63,8 +63,8 @@ def _validate_board(board: str) -> None:
 
 @router.get("/posts", response_model=list[CommunityPostResponse])
 async def list_posts(
-    region: str,
-    board: str,
+    region: str | None = None,
+    board: str = "free",
     limit: int = Query(20, ge=1, le=50),
     offset: int = Query(0, ge=0),
     query: str = Query("", max_length=100),

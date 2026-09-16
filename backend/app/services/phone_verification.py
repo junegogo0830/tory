@@ -38,6 +38,10 @@ class PhoneVerificationService:
     def __init__(self, sms_service: SmsService | None = None) -> None:
         self._sms = sms_service or SmsService()
 
+    @property
+    def is_live(self) -> bool:
+        return self._sms.is_live
+
     async def send_code(self, db: AsyncSession, raw_phone_number: str) -> None:
         phone_number = normalize_phone_number(raw_phone_number)
         now = datetime.datetime.now(datetime.timezone.utc)

@@ -186,18 +186,24 @@ class CommunityService:
         self,
         db: AsyncSession,
         *,
-        region: str,
+        region: str | None = None,
         board: str,
         limit: int = 20,
         offset: int = 0,
         query: str = "",
         viewer_id: int | None = None,
     ) -> list[CommunityPostResponse]:
+        """region이 None이면 로그인/지역 선택 없이도 볼 수 있는 "전체" 피드다 —
+        옛길 게시판은 항상 뭔가 보여야 한다는 요구사항 때문에, 지역을 아직
+        안 고른 사용자에게는 전체 지역 글을 board 기준으로만 묶어 보여준다."""
         blocked = await self._blocked_ids(db, viewer_id)
+        conditions = [CommunityPost.board == board, CommunityPost.hidden.is_(False)]
+        if region is not None:
+            conditions.append(CommunityPost.region == region)
         stmt = (
             select(CommunityPost, User.nickname)
             .join(User, User.id == CommunityPost.user_id)
-            .where(CommunityPost.region == region, CommunityPost.board == board, CommunityPost.hidden.is_(False))
+            .where(*conditions)
             .where(CommunityPost.title.icontains(query, autoescape=True) | CommunityPost.caption.icontains(query, autoescape=True) if query else True)
         )
         if blocked:

@@ -25,6 +25,13 @@ _auth_service = AuthService()
 _phone_verification_service = PhoneVerificationService()
 
 
+@router.get("/phone/required")
+async def is_phone_verification_required() -> dict[str, bool]:
+    """NCP SENS 발신번호가 승인돼 실제로 문자를 보낼 수 있을 때만 true —
+    회원가입 화면이 이 값으로 휴대폰 인증을 필수/선택으로 표시한다."""
+    return {"required": _phone_verification_service.is_live}
+
+
 @router.post("/phone/send-code", status_code=status.HTTP_204_NO_CONTENT)
 async def send_phone_verification_code(
     body: SendPhoneCodeRequest, db: AsyncSession = Depends(get_db_session)

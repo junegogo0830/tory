@@ -14,11 +14,17 @@ from ..core.security import (
 from ..db.models import User
 from ..models.auth import SignupRequest
 from .kakao_auth import KakaoAuthService
+from .phone_verification import PhoneVerificationService
 
 
 class AuthService:
-    def __init__(self, kakao_auth_service: KakaoAuthService | None = None) -> None:
+    def __init__(
+        self,
+        kakao_auth_service: KakaoAuthService | None = None,
+        phone_verification_service: PhoneVerificationService | None = None,
+    ) -> None:
         self._kakao_auth_service = kakao_auth_service or KakaoAuthService()
+        self._phone_verification_service = phone_verification_service or PhoneVerificationService()
 
     async def is_username_available(self, db: AsyncSession, username: str) -> bool:
         existing = await db.scalar(select(User).where(User.username == username))
@@ -28,17 +34,21 @@ class AuthService:
         """자체 회원가입 — 약관 동의를 확인한 뒤 유저를 만들고 옛길 자체 JWT 쌍을
         발급한다.
 
-        phone_verification_token은 선택이다 — NCP SENS 발신번호가 아직 승인
-        전이라 실제로는 인증번호가 서버 로그로만 남는 상태라, 필수로 만들면
-        지금 당장 아무도 가입을 못 하게 된다. 토큰이 왔으면(=실제로 인증에
-        성공했으면) 그 번호를 검증해서 phone_number를 채우고, 안 왔으면 그냥
-        None으로 둔다.
+        휴대폰 인증 필수 여부는 하드코딩하지 않는다 — NCP SENS 발신번호가
+        등록·승인돼 실제로 문자를 보낼 수 있는 상태(`PhoneVerificationService
+        .is_live`)일 때만 필수로 요구한다. 그 전까지 필수로 만들면 아무도
+        인증번호를 받을 수 없어(로그로만 남으므로) 가입 자체가 완전히
+        막히기 때문이다 — 발신번호가 승인되는 순간 이 조건이 자동으로
+        참이 되어 코드 변경 없이 필수 인증으로 전환된다.
         """
         if not body.agree_terms or not body.agree_privacy:
             raise ValueError("필수 약관에 동의해주세요")
 
         if await db.scalar(select(User).where(User.username == body.username)) is not None:
             raise ValueError("이미 사용 중인 아이디예요")
+
+        if self._phone_verification_service.is_live and not body.phone_verification_token:
+            raise ValueError("휴대폰 인증을 완료해주세요")
 
         phone_number: str | None = None
         if body.phone_verification_token:

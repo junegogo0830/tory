@@ -96,8 +96,10 @@ class CommunityRepository {
     );
   }
 
+  /// region이 null이면 로그인/지역 선택 없이도 볼 수 있는 전체(지역 무관)
+  /// 피드를 준다 — 옛길 게시판은 항상 뭔가 보여야 한다는 요구사항 때문.
   Future<List<CommunityPost>> getPosts(
-    String region, {
+    String? region, {
     required String board,
     int limit = 20,
     int offset = 0,
@@ -106,7 +108,7 @@ class CommunityRepository {
     final response = await _apiClient.dio.get(
       '/api/community/posts',
       queryParameters: {
-        'region': region,
+        if (region != null) 'region': region,
         'board': board,
         'limit': limit,
         'offset': offset,

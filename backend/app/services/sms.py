@@ -35,6 +35,13 @@ class SmsService:
             and settings.ncp_sens_sender_number
         )
 
+    @property
+    def is_live(self) -> bool:
+        """실제로 문자를 보낼 수 있는 상태인지 — 회원가입에서 휴대폰 인증을
+        필수로 요구할지 말지가 이 값 하나로 자동으로 결정된다(발신번호가
+        승인돼 이 값이 True가 되는 순간, 코드 변경 없이 필수 인증이 켜진다)."""
+        return self._configured()
+
     def _make_signature(self, method: str, url: str, timestamp: str) -> str:
         message = f"{method} {url}\n{timestamp}\n{settings.ncp_access_key}".encode()
         digest = hmac.new(settings.ncp_secret_key.encode(), message, hashlib.sha256).digest()
