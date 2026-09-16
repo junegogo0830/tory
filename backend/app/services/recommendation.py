@@ -144,7 +144,7 @@ class RecommendationService:
         return list(await asyncio.gather(*(self._enrich_course(c) for c in courses)))
 
     async def get_course_by_id(self, course_id: str) -> CourseResponse | None:
-        cached = await cache_get(f"course-detail:v2:{course_id}")
+        cached = await cache_get(f"course-detail:v4:{course_id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
         if course_id.startswith("llm-"):
@@ -179,7 +179,10 @@ class RecommendationService:
           정류지만 채운다 (등록 관광지가 아닌 골목은 사진이 없을 수 있음).
         - 대표 사진: 원래 정류지 순서상 가장 앞선, 검색에 걸린 정류지의 사진을 쓴다.
         """
-        cached = await cache_get(f"enriched-course:v4:{course.id}")
+        # v5: course.id는 위치+계절로 정해지는 고정값이라, CourseGeneratorService의
+        # 후보 생성 로직이 바뀌어도(예: 구글 플레이스 Nearby Search 보강 추가) 이
+        # 캐시 버전을 같이 올리지 않으면 같은 id로 예전 결과가 계속 나온다.
+        cached = await cache_get(f"enriched-course:v7:{course.id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
         location = await self._tour_api_service.get_location_by_id(course.location_id) if course.location_id else None
@@ -198,12 +201,15 @@ class RecommendationService:
                 if info.get("image_url"):
                     return info
             # TourAPI 대표사진으로 못 찾은 사진은 구글 플레이스로 마지막 보강 —
-            # 특히 소규모 식당은 TourAPI에 사진이 아예 없는 경우가 많다.
+            # 특히 소규모 식당은 TourAPI에 사진이 아예 없는 경우가 많다. 구글
+            # 사진은 출처 표기(attribution)가 이용약관상 필수라 같이 담아둔다.
             google_photo = await self._google_places_service.find_photo(stop.name, region)
             if google_photo:
-                return {**best_match, "image_url": google_photo} if best_match else {
-                    "image_url": google_photo, "latitude": None, "longitude": None,
-                }
+                merged = dict(best_match) if best_match else {"latitude": None, "longitude": None}
+                merged["image_url"] = google_photo["image_url"]
+                merged["photo_attribution_name"] = google_photo["attribution_name"]
+                merged["photo_attribution_url"] = google_photo["attribution_url"]
+                return merged
             return best_match
         infos = await asyncio.gather(*(stop_info(stop) for stop in course.stops))
 
@@ -216,11 +222,19 @@ class RecommendationService:
             if stop.latitude is None:
                 updates["latitude"] = info["latitude"]
                 updates["longitude"] = info["longitude"]
-            if info.get("image_url"):
+            # 이미 사진이 있으면(CourseGeneratorService가 관광사진 API로 채운
+            # 경우) 국문 관광정보 API의 firstimage로 덮어쓰지 않는다 — 관광사진
+            # API 출처를 우선한다. 큐레이션 코스(사진 없이 시작)는 그대로 여기서 채운다.
+            if stop.image_url is None and info.get("image_url"):
                 updates["image_url"] = info["image_url"]
+                updates["photo_attribution_name"] = info.get("photo_attribution_name")
+                updates["photo_attribution_url"] = info.get("photo_attribution_url")
             enriched_stops.append(stop.model_copy(update=updates) if updates else stop)
 
         image_url = course.image_url
+        if image_url is None:
+            # 관광사진 API로 이미 채워진 정류지 사진을 firstimage 기반 보강보다 우선한다.
+            image_url = next((s.image_url for s in enriched_stops if s.image_url), None)
         if image_url is None:
             image_url = next((info["image_url"] for info in infos if info and info["image_url"]), None)
         if image_url is None and course.location_id:
@@ -228,6 +242,6 @@ class RecommendationService:
                 image_url = await self._tour_api_service.get_city_image(location.region)
 
         result = course.model_copy(update={"stops": enriched_stops, "image_url": image_url})
-        await cache_set(f"enriched-course:v4:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
-        await cache_set(f"course-detail:v2:{course.id}", result.model_dump_json(), ex=86400)
+        await cache_set(f"enriched-course:v7:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
+        await cache_set(f"course-detail:v4:{course.id}", result.model_dump_json(), ex=86400)
         return result

@@ -21,9 +21,9 @@ from .tourapi import TourApiService
 
 logger = logging.getLogger(__name__)
 
-_TOP_ATTRACTIONS_CACHE_KEY = "discovery:top-attractions:v2"
-_RESTAURANT_CATEGORIES_CACHE_KEY = "discovery:restaurant-categories:v2"
-_KAKAO_RESTAURANTS_CACHE_KEY = "discovery:kakao-restaurants:v2"
+_TOP_ATTRACTIONS_CACHE_KEY = "discovery:top-attractions:v3"
+_RESTAURANT_CATEGORIES_CACHE_KEY = "discovery:restaurant-categories:v3"
+_KAKAO_RESTAURANTS_CACHE_KEY = "discovery:kakao-restaurants:v3"
 _CACHE_TTL_SECONDS = 3600 * 24  # 하루에 한 번 재수집.
 
 # 카카오맵 기반 "전국" 맛집 카드용 — 카카오 카테고리 검색은 좌표 기반이라 진짜
@@ -51,7 +51,7 @@ _REGION_COORDS: dict[str, tuple[float, float]] = {
     "경상": (35.8714, 128.6014),  # 대구
     "강원": (37.8228, 128.1555),  # 춘천
 }
-_KAKAO_RESTAURANTS_BY_REGION_CACHE_KEY_PREFIX = "discovery:kakao-restaurants:region:v2:"
+_KAKAO_RESTAURANTS_BY_REGION_CACHE_KEY_PREFIX = "discovery:kakao-restaurants:region:v3:"
 
 # 카카오 category_name은 "음식점 > 한식 > 육류,고기"처럼 계층 전체가 온다 —
 # 그 경로 안에 이 키워드가 하나라도 있으면 해당 큰 분류로 묶는다. 순서가
@@ -127,12 +127,14 @@ class DiscoveryService:
         )
         return attractions
 
-    async def _photo_with_fallback(self, name: str, region: str, image_url: str | None) -> str | None:
+    async def _photo_with_fallback(self, name: str, region: str, image_url: str | None) -> dict:
         """TourAPI 사진이 없으면 구글 플레이스로 마지막 보강 — 소규모 식당·일부
-        관광지는 TourAPI에 대표사진이 아예 없는 경우가 많다."""
+        관광지는 TourAPI에 대표사진이 아예 없는 경우가 많다. 구글 사진은 이용약관상
+        출처 표기가 필수라 attribution도 같이 담아 반환한다(TourAPI 사진은 불필요)."""
         if image_url is not None:
-            return image_url
-        return await self._google_places_service.find_photo(name, region)
+            return {"image_url": image_url, "attribution_name": None, "attribution_url": None}
+        photo = await self._google_places_service.find_photo(name, region)
+        return photo or {"image_url": None, "attribution_name": None, "attribution_url": None}
 
     async def _build_top_attractions(self) -> list[TopAttractionResponse]:
         results = await asyncio.gather(
@@ -146,7 +148,9 @@ class DiscoveryService:
 
         attractions = [
             TopAttractionResponse(
-                rank=rank, id=location.id, name=location.name, region=location.region, image_url=photo,
+                rank=rank, id=location.id, name=location.name, region=location.region,
+                image_url=photo["image_url"], photo_attribution_name=photo["attribution_name"],
+                photo_attribution_url=photo["attribution_url"],
             )
             for (rank, location), photo in zip(picked, photos, strict=True)
         ]
@@ -176,9 +180,13 @@ class DiscoveryService:
             *(self._photo_with_fallback(location.name, location.region, location.image_url) for location in locations)
         )
         return [
-            RestaurantItemResponse(id=location.id, name=location.name, region=location.region, image_url=photo)
+            RestaurantItemResponse(
+                id=location.id, name=location.name, region=location.region,
+                image_url=photo["image_url"], photo_attribution_name=photo["attribution_name"],
+                photo_attribution_url=photo["attribution_url"],
+            )
             for location, photo in zip(locations, photos, strict=True)
-            if photo is not None
+            if photo["image_url"] is not None
         ]
 
     async def _build_restaurant_categories(self) -> list[RestaurantCategoryResponse]:
@@ -207,7 +215,7 @@ class DiscoveryService:
         if keyword is None:
             return []
 
-        cache_key = f"discovery:restaurants:v2:{category}"
+        cache_key = f"discovery:restaurants:v3:{category}"
         cached = await cache_get(cache_key)
         if cached is not None:
             return [RestaurantItemResponse.model_validate(item) for item in json.loads(cached)]
@@ -270,15 +278,17 @@ class DiscoveryService:
 
     async def _to_responses(self, places: list[dict]) -> list[KakaoRestaurantResponse]:
         """카카오 검색 결과에 같은 이름의 TourAPI 등록 사진이 있으면 보강하고,
-        없으면(식당류는 특히 자주 없다) 구글 플레이스로 한 번 더 보강해 응답으로 바꾼다."""
-        async def photo_for(place: dict) -> str | None:
+        없으면(식당류는 특히 자주 없다) 구글 플레이스로 한 번 더 보강해 응답으로 바꾼다.
+        구글 사진은 이용약관상 출처 표기가 필수라 attribution도 같이 담는다."""
+        async def photo_for(place: dict) -> dict:
             image_url = await self._tour_api_service.find_image_url(place["name"])
             if image_url is not None:
-                return image_url
+                return {"image_url": image_url, "attribution_name": None, "attribution_url": None}
             region = extract_city(place.get("address", ""))
-            return await self._google_places_service.find_photo(place["name"], region)
+            photo = await self._google_places_service.find_photo(place["name"], region)
+            return photo or {"image_url": None, "attribution_name": None, "attribution_url": None}
 
-        image_urls = await asyncio.gather(*(photo_for(place) for place in places))
+        photos = await asyncio.gather(*(photo_for(place) for place in places))
         return [
             KakaoRestaurantResponse(
                 id=place["id"],
@@ -287,13 +297,15 @@ class DiscoveryService:
                 cuisine=_bucket_cuisine(place.get("category_path", "")),
                 address=place["address"],
                 distance_m=place.get("distance_m"),
-                image_url=image_url,
+                image_url=photo["image_url"],
+                photo_attribution_name=photo["attribution_name"],
+                photo_attribution_url=photo["attribution_url"],
                 phone=place.get("phone"),
                 place_url=place.get("place_url"),
                 latitude=place.get("latitude"),
                 longitude=place.get("longitude"),
             )
-            for place, image_url in zip(places, image_urls, strict=True)
+            for place, photo in zip(places, photos, strict=True)
         ]
 
     async def get_kakao_restaurants_by_region(self, region: str) -> list[KakaoRestaurantResponse]:

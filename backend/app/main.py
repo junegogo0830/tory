@@ -20,7 +20,11 @@ app = FastAPI(title="Yetgil API", debug=settings.debug)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [],
+    # 인증은 쿠키가 아니라 JWT 베어러 토큰(헤더)만 쓰므로 origin을 전부 열어도
+    # 자격증명이 새 나가지 않는다 — 프로덕션에서만 빈 리스트였던 게 버그였다
+    # (배포된 서버가 브라우저 요청을 전부 막고 있었음, 카카오 웹 로그인 콜백
+    # 교환 등에서 원인 불명의 무한 로딩으로 나타난다).
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

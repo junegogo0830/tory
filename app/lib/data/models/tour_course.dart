@@ -10,6 +10,8 @@ class CourseStop {
     this.address = '',
     this.stayMinutes = 30,
     this.imageUrl,
+    this.photoAttributionName,
+    this.photoAttributionUrl,
   });
 
   final String name;
@@ -21,6 +23,10 @@ class CourseStop {
   final int stayMinutes;
   // TourAPI 검색으로 보강된 정류지 사진 — 없으면 화면에서 폴백 아이콘을 쓴다.
   final String? imageUrl;
+  // imageUrl이 구글 플레이스 사진일 때만 채워진다 — 구글 이용약관상 사진을
+  // 보여줄 땐 기여자 출처 표기를 같이 보여줘야 한다.
+  final String? photoAttributionName;
+  final String? photoAttributionUrl;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
@@ -34,6 +40,8 @@ class CourseStop {
       address: json['address'] as String? ?? '',
       stayMinutes: json['stay_minutes'] as int? ?? 30,
       imageUrl: json['image_url'] as String?,
+      photoAttributionName: json['photo_attribution_name'] as String?,
+      photoAttributionUrl: json['photo_attribution_url'] as String?,
     );
   }
 }

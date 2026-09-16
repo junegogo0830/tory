@@ -1,21 +1,75 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../data/models/hometown_location.dart';
 import '../../../data/models/news_item.dart';
+import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../data/archive_providers.dart';
 
-class ArchiveScreen extends ConsumerWidget {
+class ArchiveScreen extends ConsumerStatefulWidget {
   const ArchiveScreen({super.key, required this.locationId});
 
   final String locationId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final newsAsync = ref.watch(newsByLocationProvider(locationId));
+  ConsumerState<ArchiveScreen> createState() => _ArchiveScreenState();
+}
+
+class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
+  late String _locationId = widget.locationId;
+  String? _displayRegionLabel;
+
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  bool _isSearching = false;
+  List<HometownLocation> _results = [];
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    if (query.trim().isEmpty) {
+      setState(() => _results = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 350), () => _search(query.trim()));
+  }
+
+  Future<void> _search(String query) async {
+    setState(() => _isSearching = true);
+    try {
+      final results = await ref.read(locationRepositoryProvider).searchLocations(query);
+      if (mounted) setState(() => _results = results);
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  void _selectLocation(HometownLocation location) {
+    setState(() {
+      _locationId = location.id;
+      _displayRegionLabel = '${location.name} · ${location.region}';
+      _results = [];
+      _searchController.clear();
+    });
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final newsAsync = ref.watch(newsByLocationProvider(_locationId));
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -24,13 +78,27 @@ class ArchiveScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            _RegionSearchField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              currentLabel: _displayRegionLabel,
+            ),
+            if (_isSearching || _results.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _RegionSearchResults(
+                results: _results,
+                isSearching: _isSearching,
+                onSelect: _selectLocation,
+              ),
+            ],
+            const SizedBox(height: 20),
             const _SectionHeader(
               icon: Icons.auto_stories_outlined,
               title: '그 시절 이야기',
               subtitle: 'AI가 웹에서 찾아 정리한 이 동네의 옛 기록이에요',
             ),
             const SizedBox(height: 12),
-            _RegionStoryCard(locationId: locationId),
+            _RegionStoryCard(locationId: _locationId),
             const SizedBox(height: 28),
             const _SectionHeader(
               icon: Icons.newspaper_outlined,
@@ -66,6 +134,88 @@ class ArchiveScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 다른 동네 소식이 궁금할 때 바로 검색해서 이 화면 안에서 전환할 수 있는 입력창.
+class _RegionSearchField extends StatelessWidget {
+  const _RegionSearchField({required this.controller, required this.onChanged, this.currentLabel});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final String? currentLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            hintText: '다른 동네를 검색해보세요 (예: 순천 저전동)',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            filled: true,
+            fillColor: AppColors.fieldBg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.field),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        if (currentLabel != null) ...[
+          const SizedBox(height: 6),
+          Text('지금 보는 동네: $currentLabel', style: AppTypography.caption),
+        ],
+      ],
+    );
+  }
+}
+
+class _RegionSearchResults extends StatelessWidget {
+  const _RegionSearchResults({required this.results, required this.isSearching, required this.onSelect});
+
+  final List<HometownLocation> results;
+  final bool isSearching;
+  final ValueChanged<HometownLocation> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isSearching) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+          ),
+        ),
+      );
+    }
+    if (results.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text('검색 결과가 없어요', style: AppTypography.footnote),
+      );
+    }
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var i = 0; i < results.length; i++) ...[
+            ListTile(
+              dense: true,
+              title: Text(results[i].name, style: AppTypography.body),
+              subtitle: Text(results[i].region, style: AppTypography.caption),
+              onTap: () => onSelect(results[i]),
+            ),
+            if (i != results.length - 1) Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.hairline),
+          ],
+        ],
       ),
     );
   }

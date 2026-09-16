@@ -31,6 +31,139 @@ async def test_generate_course_returns_none_without_coordinates() -> None:
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_candidate_pool_requires_photo_gallery_match() -> None:
+    """핵심 요구사항: 관광사진 API에 사진이 없는 장소는 애초에 후보 풀에 없어야 한다."""
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return []  # 이 지역엔 관광사진 API 결과가 없음
+
+    service = CourseGeneratorService(photo_gallery_service=Photo())
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.1, longitude=127.1)
+    )
+    assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_candidate_pool_drops_photos_that_do_not_match_tour_info() -> None:
+    """사진은 있지만 국문 관광정보 API와 매칭 안 되는(좌표를 못 구한) 장소는 제외."""
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return [{"title": "매칭안됨", "image_url": "https://img/x.jpg", "location_text": ""}]
+
+    class Tour:
+        async def match_tour_info(self, name, region=""):
+            return None
+
+    service = CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.1, longitude=127.1)
+    )
+    assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_candidate_pool_drops_matches_too_far_away() -> None:
+    """매칭은 됐지만 위치가 너무 멀면(반경 밖) 후보에서 제외한다."""
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return [{"title": "먼곳", "image_url": "https://img/y.jpg", "location_text": ""}]
+
+    class Tour:
+        async def match_tour_info(self, name, region=""):
+            return {
+                "content_id": "999", "content_type_id": "12", "name": name,
+                "address": "다른 지역", "category": "관광지",
+                "latitude": 30.0, "longitude": 120.0,  # 아주 먼 좌표
+            }
+
+    service = CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.1, longitude=127.1)
+    )
+    assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_candidate_pool_falls_back_to_google_places_when_photo_gallery_is_thin() -> None:
+    """관광사진 API 후보가 2곳 미만이면 구글 플레이스 Nearby Search로 보강한다."""
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return []  # 관광사진 API에 이 지역 결과가 없음
+
+    class GooglePlaces:
+        async def find_nearby(self, *, latitude, longitude, radius_m):
+            return [
+                {"title": "구글로 찾은 카페", "latitude": 37.101, "longitude": 127.101,
+                 "address": "근처 어딘가", "image_url": "https://img/google-cafe.jpg"},
+                {"title": "구글로 찾은 공원", "latitude": 37.102, "longitude": 127.102,
+                 "address": "근처 어딘가2", "image_url": "https://img/google-park.jpg"},
+            ]
+
+    service = CourseGeneratorService(photo_gallery_service=Photo(), google_places_service=GooglePlaces())
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.1, longitude=127.1)
+    )
+    assert {c["title"] for c in candidates} == {"구글로 찾은 카페", "구글로 찾은 공원"}
+    assert all(c["image_url"] for c in candidates)
+    assert all(c["content_id"] is None for c in candidates)
+
+
+@pytest.mark.asyncio
+async def test_candidate_pool_skips_google_places_when_photo_gallery_already_has_enough() -> None:
+    """관광사진 API만으로 2곳 이상 모이면 구글 플레이스는 아예 호출하지 않는다."""
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return [
+                {"title": "실제장소A", "image_url": "https://img/a.jpg", "location_text": ""},
+                {"title": "실제장소B", "image_url": "https://img/b.jpg", "location_text": ""},
+            ]
+
+    class Tour:
+        async def match_tour_info(self, name, region=""):
+            return {
+                "content_id": name, "content_type_id": "12", "name": name,
+                "address": "어딘가", "category": "관광지", "latitude": 37.101, "longitude": 127.101,
+            }
+
+    class GooglePlaces:
+        async def find_nearby(self, **kwargs):
+            raise AssertionError("photo gallery만으로 충분하면 구글 플레이스는 호출되면 안 됨")
+
+    service = CourseGeneratorService(
+        tour_api_service=Tour(), photo_gallery_service=Photo(), google_places_service=GooglePlaces()
+    )
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.1, longitude=127.1)
+    )
+    assert len(candidates) == 2
+
+
+@pytest.mark.asyncio
+async def test_candidate_pool_keeps_photo_backed_nearby_match() -> None:
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return [{"title": "가까운곳", "image_url": "https://img/z.jpg", "location_text": ""}]
+
+    class Tour:
+        async def match_tour_info(self, name, region=""):
+            return {
+                "content_id": "111", "content_type_id": "12", "name": name,
+                "address": "근처 주소", "category": "관광지",
+                "latitude": 37.101, "longitude": 127.101,
+            }
+
+    service = CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.1, longitude=127.1)
+    )
+    assert len(candidates) == 1
+    assert candidates[0]["title"] == "가까운곳"
+    assert candidates[0]["image_url"] == "https://img/z.jpg"
+    assert candidates[0]["content_id"] == "111"
+
+
 def test_parse_course_filters_hallucinated_stops() -> None:
     service = CourseGeneratorService()
     candidates = [
@@ -112,13 +245,23 @@ async def test_ai_request_does_not_block_other_requests(monkeypatch):
     completed=threading.Event()
     started=threading.Event()
     class Tour:
-        async def find_nearby_places(self, **kwargs): return [_candidate('A'), _candidate('B')]
+        async def match_tour_info(self, name, region=""):
+            return {
+                "content_id": name, "content_type_id": "12", "name": name,
+                "address": "어딘가", "category": "관광지", "latitude": 37.1, "longitude": 127.1,
+            }
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return [
+                {"title": "A", "image_url": "https://img/a.jpg", "location_text": ""},
+                {"title": "B", "image_url": "https://img/b.jpg", "location_text": ""},
+            ]
     def create(**kwargs):
         started.set()
         time.sleep(.1)
         completed.set()
         return SimpleNamespace(content=[SimpleNamespace(type='text',text='{"title":"t","description":"d","duration_label":"1h","sentiment_score":0.5,"stops":["A","B"]}')])
-    service=CourseGeneratorService(tour_api_service=Tour())
+    service=CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
     monkeypatch.setattr(service,'_get_client',lambda: SimpleNamespace(messages=SimpleNamespace(create=create)))
     async def health_check():
         for _ in range(100):

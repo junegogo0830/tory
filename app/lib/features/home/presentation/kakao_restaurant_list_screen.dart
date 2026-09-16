@@ -9,6 +9,7 @@ import '../../../data/models/kakao_restaurant.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_network_image.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/photo_attribution_badge.dart';
 import '../data/home_providers.dart';
 import 'widgets/restaurant_cuisine_filter.dart';
 
@@ -275,7 +276,21 @@ class _RestaurantRow extends StatelessWidget {
                   height: 48,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.tile),
-                    child: AppNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        AppNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover),
+                        if (item.photoAttributionName != null)
+                          Positioned(
+                            right: 1,
+                            bottom: 1,
+                            child: PhotoAttributionBadge(
+                              name: item.photoAttributionName,
+                              url: item.photoAttributionUrl,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               const SizedBox(width: 12),

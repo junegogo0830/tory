@@ -7,6 +7,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_shadows.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../data/models/restaurant_category.dart';
+import '../../../../shared/widgets/photo_attribution_badge.dart';
 import '../../../../shared/widgets/photo_fallback.dart';
 import '../../data/home_providers.dart';
 
@@ -160,14 +161,28 @@ class _CategoryCard extends StatelessWidget {
           SizedBox(
             height: _kHeroHeight,
             width: double.infinity,
-            child: hero.imageUrl == null
-                ? const PhotoFallback()
-                : AppNetworkImage(
-                    imageUrl: hero.imageUrl!,
-                    fit: BoxFit.cover,
-                    placeholder: (_, _) => const PhotoFallback(),
-                    errorWidget: (_, _, _) => const PhotoFallback(),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                hero.imageUrl == null
+                    ? const PhotoFallback()
+                    : AppNetworkImage(
+                        imageUrl: hero.imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => const PhotoFallback(),
+                        errorWidget: (_, _, _) => const PhotoFallback(),
+                      ),
+                if (hero.photoAttributionName != null)
+                  Positioned(
+                    right: 6,
+                    bottom: 6,
+                    child: PhotoAttributionBadge(
+                      name: hero.photoAttributionName,
+                      url: hero.photoAttributionUrl,
+                    ),
                   ),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           SizedBox(
@@ -250,14 +265,28 @@ class _ThumbCard extends StatelessWidget {
             child: SizedBox(
               height: 72,
               width: double.infinity,
-              child: item.imageUrl == null
-                  ? const PhotoFallback()
-                  : AppNetworkImage(
-                      imageUrl: item.imageUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (_, _) => const PhotoFallback(),
-                      errorWidget: (_, _, _) => const PhotoFallback(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  item.imageUrl == null
+                      ? const PhotoFallback()
+                      : AppNetworkImage(
+                          imageUrl: item.imageUrl!,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) => const PhotoFallback(),
+                          errorWidget: (_, _, _) => const PhotoFallback(),
+                        ),
+                  if (item.photoAttributionName != null)
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: PhotoAttributionBadge(
+                        name: item.photoAttributionName,
+                        url: item.photoAttributionUrl,
+                      ),
                     ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 5),

@@ -12,6 +12,8 @@ class KakaoRestaurant {
     required this.address,
     this.distanceM,
     this.imageUrl,
+    this.photoAttributionName,
+    this.photoAttributionUrl,
     this.phone,
     this.placeUrl,
     this.latitude,
@@ -26,6 +28,10 @@ class KakaoRestaurant {
   final String address;
   final int? distanceM;
   final String? imageUrl;
+  // imageUrl이 구글 플레이스 사진일 때만 채워진다 — 구글 이용약관상 사진을
+  // 보여줄 땐 기여자 출처 표기를 같이 보여줘야 한다.
+  final String? photoAttributionName;
+  final String? photoAttributionUrl;
   final String? phone;
   final String? placeUrl;
   final double? latitude;
@@ -42,6 +48,8 @@ class KakaoRestaurant {
       address: json['address'] as String,
       distanceM: json['distance_m'] as int?,
       imageUrl: json['image_url'] as String?,
+      photoAttributionName: json['photo_attribution_name'] as String?,
+      photoAttributionUrl: json['photo_attribution_url'] as String?,
       phone: json['phone'] as String?,
       placeUrl: json['place_url'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),

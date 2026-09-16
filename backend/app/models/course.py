@@ -28,6 +28,10 @@ class CourseStop(BaseModel):
     # TourApiService.find_place_info로 보강된 정류지 사진 — 없으면 프론트가
     # 자체 폴백 아이콘을 보여준다.
     image_url: str | None = None
+    # image_url이 구글 플레이스 사진일 때만 채워진다 — 구글 이용약관상 사진을
+    # 보여주려면 기여자 출처 표기를 같이 보여줘야 한다.
+    photo_attribution_name: str | None = None
+    photo_attribution_url: str | None = None
 
 
 class CourseResponse(BaseModel):

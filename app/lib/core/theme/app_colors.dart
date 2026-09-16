@@ -4,65 +4,37 @@ import 'package:flutter/material.dart';
 /// warm ivory/beige 배경 + 브라운 계열 강조색을 쓰는 "실제 출시된 한국 커머스
 /// 앱" 톤을 기준으로 삼는다(판단 기준: docs/DESIGN_SYSTEM.md, 코스 공유 화면
 /// 목업). 브라운은 장식이 아니라 selected/active/interactive 상태 표현에 쓴다.
-///
-/// 무채색 톤(paper/surface/ink 등)은 다크모드에서 반전되어야 해서 getter로
-/// 만들어 [darkModeNotifier]를 참조한다 — 이 값이 바뀌면 [BrightnessScope]가
-/// 앱 전체를 새로 그려서 화면에 반영한다. 강조색/파스텔 배지색은 두 모드에서
-/// 동일하게 유지하는 게 자연스러워 그대로 static const로 남겨뒀다.
 abstract final class AppColors {
-  /// 현재 다크모드 여부. [BrightnessScope]가 시스템 설정 변경에 맞춰 갱신한다.
-  static final ValueNotifier<bool> darkModeNotifier = ValueNotifier<bool>(false);
-
-  static bool get _dark => darkModeNotifier.value;
-
   // Primary Background
-  static const Color _paperLight = Color(0xFFF2EFEA);
-  static const Color _paperDark = Color(0xFF14120F);
-  static Color get paper => _dark ? _paperDark : _paperLight;
+  static const Color paper = Color(0xFFF2EFEA);
 
   // Secondary Background — 입력창/서치바처럼 배경보다 한 단 들어간 표면.
-  static const Color _fieldBgLight = Color(0xFFF6F3EE);
-  static const Color _fieldBgDark = Color(0xFF2A2621);
-  static Color get fieldBg => _dark ? _fieldBgDark : _fieldBgLight;
+  static const Color fieldBg = Color(0xFFF6F3EE);
 
   // Surface — 카드/리스트 등 콘텐츠가 올라가는 가장 밝은 면.
-  static const Color _surfaceLight = Color(0xFFFFFDFC);
-  static const Color _surfaceDark = Color(0xFF211E1A);
-  static Color get surface => _dark ? _surfaceDark : _surfaceLight;
+  static const Color surface = Color(0xFFFFFDFC);
 
   // Primary Text
-  static const Color _inkLight = Color(0xFF29241F);
-  static const Color _inkDark = Color(0xFFF2EEE8);
-  static Color get ink => _dark ? _inkDark : _inkLight;
+  static const Color ink = Color(0xFF29241F);
 
   // Secondary Text
-  static const Color _inkSecondaryLight = Color(0xFF91877D);
-  static const Color _inkSecondaryDark = Color(0xFFAFA89C);
-  static Color get inkSecondary => _dark ? _inkSecondaryDark : _inkSecondaryLight;
+  static const Color inkSecondary = Color(0xFF91877D);
 
   // Muted Text
-  static const Color _inkTertiaryLight = Color(0xFFAAA198);
-  static const Color _inkTertiaryDark = Color(0xFF716B62);
-  static Color get inkTertiary => _dark ? _inkTertiaryDark : _inkTertiaryLight;
+  static const Color inkTertiary = Color(0xFFAAA198);
 
   // Light Divider — 리스트 행 사이 구분선.
-  static const Color _hairlineLight = Color(0xFFEAE4DE);
-  static const Color _hairlineDark = Color(0xFF3A352E);
-  static Color get hairline => _dark ? _hairlineDark : _hairlineLight;
+  static const Color hairline = Color(0xFFEAE4DE);
 
   // Default Border — 카드/컴포넌트 외곽선(구분선보다 한 단 또렷하다).
-  static const Color _borderLight = Color(0xFFDED7CF);
-  static const Color _borderDark = Color(0xFF453F37);
-  static Color get border => _dark ? _borderDark : _borderLight;
+  static const Color border = Color(0xFFDED7CF);
 
-  static const Color _charcoalLight = Color(0xFF2B2826);
-  static const Color _charcoalDark = Color(0xFFE8E4DE);
-  static Color get charcoal => _dark ? _charcoalDark : _charcoalLight;
+  static const Color charcoal = Color(0xFF2B2826);
 
-  // 브랜드 브라운 스케일 — 두 모드에서 동일(브랜드 아이덴티티 색이라 반전하지
-  // 않는다). accent는 selected/active 상태, accentDeep은 아이콘·강한 텍스트,
-  // accentInteractive는 hover/pressed류 보조 상태, accentCta는 등록/제출 같은
-  // 1차 액션 버튼 전용, accentBorder는 selected 카드 테두리.
+  // 브랜드 브라운 스케일. accent는 selected/active 상태, accentDeep은
+  // 아이콘·강한 텍스트, accentInteractive는 hover/pressed류 보조 상태,
+  // accentCta는 등록/제출 같은 1차 액션 버튼 전용, accentBorder는 selected
+  // 카드 테두리.
   static const Color accent = Color(0xFF755039); // Primary Brown
   static const Color accentDeep = Color(0xFF583B2A); // Dark Brown
   static const Color accentInteractive = Color(0xFF916247); // Interactive Brown

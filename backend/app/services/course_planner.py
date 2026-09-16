@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from ..db.redis import cache_get, cache_set
 from ..models.course import CourseGenerateRequest, CourseResponse, CourseStop
+from .google_places import GooglePlacesService
 from .tourapi import TourApiService
 from .kakao_local import KakaoLocalService
 from .weather import WeatherService
@@ -23,10 +24,11 @@ def distance_km(a, b):
 
 
 class CoursePlanner:
-    def __init__(self, tour=None, kakao=None, weather=None):
+    def __init__(self, tour=None, kakao=None, weather=None, google_places=None):
         self.tour = tour or TourApiService()
         self.kakao = kakao or KakaoLocalService()
         self.weather = weather or WeatherService()
+        self.google_places = google_places or GooglePlacesService()
 
     async def generate(self, request: CourseGenerateRequest) -> CourseResponse:
         request = request.model_copy(update={"region": request.region.strip(), "categories": list(dict.fromkeys(request.categories))})
@@ -93,13 +95,31 @@ class CoursePlanner:
             if chosen is None:
                 break
             p, leg, stay = chosen
-            selected.append(CourseStop(name=p['title'], latitude=p['latitude'], longitude=p['longitude'], category=p.get('category',''), address=p.get('addr',''), stay_minutes=stay, source=p['source']))
+            selected.append(CourseStop(name=p['title'], latitude=p['latitude'], longitude=p['longitude'], category=p.get('category',''), address=p.get('addr',''), stay_minutes=stay, source=p['source'], image_url=p.get('image_url')))
             total_distance += leg
             used_minutes += leg / speed * 60 + stay
             current = (p['latitude'], p['longitude'])
             pool.remove(p)
         if len(selected) < 2:
             raise HTTPException(404, "선택 조건 안에서 연결할 장소가 부족해요. 여행 시간을 늘리거나 관심 카테고리를 추가해주세요")
+        # 카카오 로컬 후보는 애초에 사진을 안 주고, TourAPI 후보도 대표사진이
+        # 없는 경우가 흔하다(식당류 특히) — 최종 선택된(최대 5곳) 정류지만
+        # 구글 플레이스로 사진을 보강한다. 후보 선정(관심사 매칭) 로직 자체는
+        # 건드리지 않는다 — 여기서 걸러버리면 관광지 적은 동네에서 "장소 부족"
+        # 에러가 더 자주 난다.
+        async def stop_photo(stop: CourseStop) -> dict | None:
+            if stop.image_url:
+                return None  # 이미 있음(TourAPI 출처라 출처 표기 불필요) — 그대로 둔다.
+            return await self.google_places.find_photo(stop.name, request.region)
+        photos = await asyncio.gather(*(stop_photo(s) for s in selected))
+        selected = [
+            s if photo is None else s.model_copy(update={
+                'image_url': photo['image_url'],
+                'photo_attribution_name': photo['attribution_name'],
+                'photo_attribution_url': photo['attribution_url'],
+            })
+            for s, photo in zip(selected, photos, strict=True)
+        ]
         notes = ["이동 거리는 직선거리 보정 추정치예요. 실제 보행 경로와 영업시간은 길찾기에서 확인해주세요."]
         if indoor:
             notes.append("날씨에 맞춰 실내 문화시설·음식점과 짧은 이동을 우선했어요. 야외 정류지는 현장 날씨를 확인해주세요.")
@@ -110,7 +130,8 @@ class CoursePlanner:
             notes.append("주변 장소와 이동 시간 제약으로 일부 관심사(" + ', '.join(missing) + ")는 포함되지 않았어요.")
         if request.gender != '선택 안 함':
             notes.append("성별로 장소를 제한하지 않고 선택한 관심사와 여행 속도를 우선 반영했어요.")
-        course = CourseResponse(id=f"plan-{digest}", title=f"{request.region} {' · '.join(request.categories)}", description=f"{weather_label}, {pace} 둘러보는 {len(selected)}곳의 여행. {request.age_group} 여행자의 {request.duration_hours}시간 일정에 맞췄어요." if request.age_group != '선택 안 함' else f"{weather_label}, {pace} 둘러보는 {len(selected)}곳의 여행. {request.duration_hours}시간 일정에 맞췄어요.", sentiment_score=0, stops=selected, duration_label=f"약 {math.ceil(used_minutes / 10) * 10}분", category=request.categories[0], region=request.region, weather_label=weather_label, estimated_distance_km=round(total_distance,1), notes=notes, source='tourapi+kakao', image_url=next((p.get('image_url') for p in candidates if p['title'] in {s.name for s in selected} and p.get('image_url')), None))
+        course_image_url = next((s.image_url for s in selected if s.image_url), None)
+        course = CourseResponse(id=f"plan-{digest}", title=f"{request.region} {' · '.join(request.categories)}", description=f"{weather_label}, {pace} 둘러보는 {len(selected)}곳의 여행. {request.age_group} 여행자의 {request.duration_hours}시간 일정에 맞췄어요." if request.age_group != '선택 안 함' else f"{weather_label}, {pace} 둘러보는 {len(selected)}곳의 여행. {request.duration_hours}시간 일정에 맞췄어요.", sentiment_score=0, stops=selected, duration_label=f"약 {math.ceil(used_minutes / 10) * 10}분", category=request.categories[0], region=request.region, weather_label=weather_label, estimated_distance_km=round(total_distance,1), notes=notes, source='tourapi+kakao', image_url=course_image_url)
         course.source = '+'.join(sorted({stop.source for stop in selected}))
         await cache_set(key, course.model_dump_json(), ex=7*86400)
         return course

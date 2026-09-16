@@ -25,11 +25,21 @@ async def search_locations(
     return await _tour_api_service.search_locations(query, limit=limit)
 
 
+_SEARCH_CONTENT_TYPES = {"12", "14", "15", "25", "28", "32", "38", "39"}
+
+
 @router.get("/tour-search", response_model=list[LocationResponse])
 async def search_tour_locations(
-    query: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=10)
+    query: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=10),
+    content_type_id: str = Query("12"),
 ) -> list[LocationResponse]:
-    return await _tour_api_service.search_attractions(query, num_rows=limit)
+    """등록 관광지 키워드 검색. content_type_id로 카테고리를 좁힐 수 있다
+    (기본값 12=관광지 — 코스 커스텀의 "카카오맵 기반" 장소 검색 등 기존
+    호출부는 그대로 이 기본값을 쓴다). 홈 화면 검색 필터가 다른 카테고리를 넘긴다."""
+    if content_type_id not in _SEARCH_CONTENT_TYPES:
+        content_type_id = "12"
+    return await _tour_api_service.search_attractions(query, num_rows=limit, content_type_id=content_type_id)
 
 
 @router.get("", response_model=LocationResponse)

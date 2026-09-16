@@ -12,6 +12,7 @@ import '../../../../core/theme/category_colors.dart';
 import '../../../../core/utils/kakao_map_links.dart';
 import '../../../../data/models/kakao_restaurant.dart';
 import '../../../../shared/widgets/app_network_image.dart';
+import '../../../../shared/widgets/photo_attribution_badge.dart';
 import '../../data/home_providers.dart';
 import 'restaurant_cuisine_filter.dart';
 
@@ -376,11 +377,25 @@ class _RestaurantSingle extends StatelessWidget {
                 child: SizedBox(
                   width: 64,
                   height: 64,
-                  child: AppNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (_, _) => _emojiBadge(),
-                    errorWidget: (_, _, _) => _emojiBadge(),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      AppNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => _emojiBadge(),
+                        errorWidget: (_, _, _) => _emojiBadge(),
+                      ),
+                      if (item.photoAttributionName != null)
+                        Positioned(
+                          right: 1,
+                          bottom: 1,
+                          child: PhotoAttributionBadge(
+                            name: item.photoAttributionName,
+                            url: item.photoAttributionUrl,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

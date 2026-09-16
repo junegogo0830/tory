@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     tour_api_key: str = ""
+    # 한국관광공사 "관광사진 정보" API(PhotoGalleryService1)는 국문 관광정보
+    # API(KorService2)와 data.go.kr에 별도로 등록된 API다. 보통 같은 계정의
+    # 활용신청 키를 그대로 쓸 수 있어 비어 있으면 tour_api_key로 대체한다 —
+    # data.go.kr이 이 API만 별도 키를 요구하는 계정이면 여기 따로 채운다.
+    tour_photo_api_key: str = ""
     naver_news_client_id: str = ""
     naver_news_client_secret: str = ""
     kakao_map_js_key: str = ""

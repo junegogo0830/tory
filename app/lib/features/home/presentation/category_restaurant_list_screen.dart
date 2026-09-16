@@ -8,6 +8,7 @@ import '../../../data/models/restaurant_category.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/photo_attribution_badge.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 
 /// "자세히보기"로 들어오는 관광공사 Pick 카테고리 맛집 전체 목록(전국).
@@ -127,14 +128,28 @@ class _RestaurantRow extends StatelessWidget {
               child: SizedBox(
                 width: 60,
                 height: 60,
-                child: item.imageUrl == null
-                    ? const PhotoFallback()
-                    : AppNetworkImage(
-                        imageUrl: item.imageUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (_, _) => const PhotoFallback(),
-                        errorWidget: (_, _, _) => const PhotoFallback(),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    item.imageUrl == null
+                        ? const PhotoFallback()
+                        : AppNetworkImage(
+                            imageUrl: item.imageUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (_, _) => const PhotoFallback(),
+                            errorWidget: (_, _, _) => const PhotoFallback(),
+                          ),
+                    if (item.photoAttributionName != null)
+                      Positioned(
+                        right: 1,
+                        bottom: 1,
+                        child: PhotoAttributionBadge(
+                          name: item.photoAttributionName,
+                          url: item.photoAttributionUrl,
+                        ),
                       ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 12),

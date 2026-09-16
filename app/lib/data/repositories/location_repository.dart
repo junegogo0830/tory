@@ -65,8 +65,21 @@ class LocationRepository {
         .toList();
   }
 
-  Future<List<HometownLocation>> searchTourLocations(String query, {int limit = 10}) async {
-    final response = await _apiClient.dio.get('/api/location/tour-search', queryParameters: {'query': query, 'limit': limit});
+  /// [contentTypeId]로 카테고리를 좁힐 수 있다 (TourAPI contentTypeId, 예: "39"=음식점).
+  /// 안 넘기면 백엔드 기본값(관광지)을 쓴다.
+  Future<List<HometownLocation>> searchTourLocations(
+    String query, {
+    int limit = 10,
+    String? contentTypeId,
+  }) async {
+    final response = await _apiClient.dio.get(
+      '/api/location/tour-search',
+      queryParameters: {
+        'query': query,
+        'limit': limit,
+        'content_type_id': ?contentTypeId,
+      },
+    );
     return (response.data as List).map((json) => HometownLocation.fromJson(json as Map<String, dynamic>)).toList();
   }
 

@@ -250,10 +250,14 @@ class TourApiService:
         digest = hashlib.sha1(f"{place['name']}{place['address']}".encode()).hexdigest()[:12]
         return f"kakao-{digest}"
 
-    async def search_attractions(self, query: str, num_rows: int) -> list[LocationResponse]:
-        """키워드로 등록 관광지(contentTypeId=12)만 검색한다 — HighlightService처럼
-        검색 결과 자체(사진 포함)가 필요한 외부 호출부를 위한 공개 진입점."""
-        return await self._search_from_tourapi(query, num_rows, content_type_id="12")
+    async def search_attractions(
+        self, query: str, num_rows: int, *, content_type_id: str = "12"
+    ) -> list[LocationResponse]:
+        """키워드로 등록 관광지(기본 contentTypeId=12)만 검색한다 — HighlightService처럼
+        검색 결과 자체(사진 포함)가 필요한 외부 호출부를 위한 공개 진입점.
+        content_type_id를 넘기면 다른 카테고리(문화시설/숙박 등)로 좁힐 수 있다
+        (홈 화면 검색 필터)."""
+        return await self._search_from_tourapi(query, num_rows, content_type_id=content_type_id)
 
     async def search_restaurants(self, query: str, num_rows: int) -> list[LocationResponse]:
         """키워드로 등록 음식점(contentTypeId=39)만 검색한다 — 카테고리별 맛집
@@ -610,6 +614,60 @@ class TourApiService:
         await cache_set(cache_key, json.dumps(info) if info else "null", ex=_IMAGE_CACHE_TTL_SECONDS)
 
         return info
+
+    async def match_tour_info(self, name: str, region: str = "") -> dict | None:
+        """관광사진 API로 찾은 장소명을 국문 관광정보 API와 매칭해 상세정보를 보강한다.
+
+        공통 식별자(contentId)가 없는 두 API를 잇는 유일한 방법이 장소명 텍스트
+        검색이라, 후보들 중 주소가 region과 겹치는 항목을 우선하되 없으면 첫
+        결과를 쓴다(완전 일치만 요구하면 표기 차이로 정상 장소가 대량 탈락한다).
+        """
+        if not settings.tour_api_key:
+            return None
+
+        cache_key = f"tourmatch:v1:{name}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return json.loads(cached) if cached != "null" else None
+
+        try:
+            body = await self._get(
+                "searchKeyword2",
+                keyword=name,
+                MobileOS="ETC",
+                MobileApp="Yetgil",
+                _type="json",
+                numOfRows=5,
+                arrange="O",
+            )
+        except (httpx.HTTPError, ValueError):
+            logger.exception("TourAPI match search failed for name=%s", name)
+            return None
+
+        items = body.get("response", {}).get("body", {}).get("items", "")
+        item_list = items.get("item", []) if items else []
+        if not item_list:
+            await cache_set(cache_key, "null", ex=_IMAGE_CACHE_TTL_SECONDS)
+            return None
+
+        region_parts = [p for p in region.split() if len(p) >= 2]
+
+        def region_match(item: dict) -> int:
+            addr = item.get("addr1", "")
+            return 1 if any(part in addr for part in region_parts) else 0
+
+        item = max(item_list, key=region_match) if region_parts else item_list[0]
+        result = {
+            "content_id": item.get("contentid", ""),
+            "content_type_id": item.get("contenttypeid", ""),
+            "name": item.get("title") or name,
+            "address": item.get("addr1", ""),
+            "category": _CONTENT_TYPE_LABELS.get(item.get("contenttypeid", ""), "기타"),
+            "latitude": _parse_coord(item.get("mapy")),
+            "longitude": _parse_coord(item.get("mapx")),
+        }
+        await cache_set(cache_key, json.dumps(result), ex=_IMAGE_CACHE_TTL_SECONDS)
+        return result
 
     async def _search_first_place(self, keyword: str) -> dict | None:
         try:

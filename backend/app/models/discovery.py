@@ -7,6 +7,10 @@ class TopAttractionResponse(BaseModel):
     name: str
     region: str
     image_url: str | None = None
+    # image_url이 구글 플레이스 사진일 때만 채워진다 — 구글 이용약관상 사진을
+    # 보여주려면 기여자 출처 표기를 같이 보여줘야 한다.
+    photo_attribution_name: str | None = None
+    photo_attribution_url: str | None = None
 
 
 class RestaurantItemResponse(BaseModel):
@@ -14,6 +18,8 @@ class RestaurantItemResponse(BaseModel):
     name: str
     region: str
     image_url: str | None = None
+    photo_attribution_name: str | None = None
+    photo_attribution_url: str | None = None
 
 
 class RestaurantCategoryResponse(BaseModel):
@@ -43,6 +49,8 @@ class KakaoRestaurantResponse(BaseModel):
     address: str
     distance_m: int | None = None
     image_url: str | None = None
+    photo_attribution_name: str | None = None
+    photo_attribution_url: str | None = None
     phone: str | None = None
     place_url: str | None = None
     latitude: float | None = None

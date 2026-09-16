@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/data/hero_highlights.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_typography.dart';
@@ -60,7 +61,7 @@ class CompareScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _HeroImage(location: location),
+                _HeroImage(location: location, locationId: locationId),
                 if (location.imageSourceName != null) ...[
                   const SizedBox(height: 6),
                   Text(
@@ -153,12 +154,41 @@ class CompareScreen extends ConsumerWidget {
 }
 
 class _HeroImage extends StatelessWidget {
-  const _HeroImage({required this.location});
+  const _HeroImage({required this.location, required this.locationId});
 
   final HometownLocation location;
+  final String locationId;
+
+  // 히어로 배너 원본 사진 비율(hero_highlight_banner.dart와 동일). 사진 자체에
+  // 제목/설명 글자가 이미 그려져 있어서, 이 비율이 아니거나 cover를 쓰면
+  // 글자가 잘린다 — 홈 배너에서 한 번 겪은 문제라 여기도 같은 값을 쓴다.
+  static const _bundledHeroAspectRatio = 1200 / 502;
+
+  /// 홈 화면 히어로 배너로 들어왔으면(hero-*) 그 배너가 이미 쓴 번들 자산을
+  /// 그대로 재사용한다 — 원격 사진(TourAPI/프록시)에 기대지 않아 항상 뜨고,
+  /// 홈에서 본 사진과 상세에서 다른 사진이 뜨는 일도 없다.
+  String? get _bundledHeroAsset {
+    for (final highlight in heroHighlights) {
+      if (highlight.locationId == locationId) return highlight.imageAsset;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bundledAsset = _bundledHeroAsset;
+    if (bundledAsset != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: AspectRatio(
+          aspectRatio: _bundledHeroAspectRatio,
+          child: ColoredBox(
+            color: AppColors.surface,
+            child: Image.asset(bundledAsset, fit: BoxFit.contain),
+          ),
+        ),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.card),
       child: AspectRatio(

@@ -6,6 +6,8 @@ class TopAttraction {
     required this.name,
     required this.region,
     this.imageUrl,
+    this.photoAttributionName,
+    this.photoAttributionUrl,
   });
 
   final int rank;
@@ -13,6 +15,10 @@ class TopAttraction {
   final String name;
   final String region;
   final String? imageUrl;
+  // imageUrl이 구글 플레이스 사진일 때만 채워진다 — 구글 이용약관상 사진을
+  // 보여줄 땐 기여자 출처 표기를 같이 보여줘야 한다.
+  final String? photoAttributionName;
+  final String? photoAttributionUrl;
 
   factory TopAttraction.fromJson(Map<String, dynamic> json) {
     return TopAttraction(
@@ -21,6 +27,8 @@ class TopAttraction {
       name: json['name'] as String,
       region: json['region'] as String,
       imageUrl: json['image_url'] as String?,
+      photoAttributionName: json['photo_attribution_name'] as String?,
+      photoAttributionUrl: json['photo_attribution_url'] as String?,
     );
   }
 }

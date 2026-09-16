@@ -4,18 +4,15 @@ import 'app_radius.dart';
 import 'app_typography.dart';
 
 abstract final class AppTheme {
-  static ThemeData get light => _build(Brightness.light);
-  static ThemeData get dark => _build(Brightness.dark);
-
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData get light {
     final base = ThemeData(
       useMaterial3: true,
-      brightness: brightness,
+      brightness: Brightness.light,
       fontFamily: 'Pretendard',
       scaffoldBackgroundColor: AppColors.paper,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.accent,
-        brightness: brightness,
+        brightness: Brightness.light,
         primary: AppColors.ink,
         secondary: AppColors.accent,
         surface: AppColors.surface,

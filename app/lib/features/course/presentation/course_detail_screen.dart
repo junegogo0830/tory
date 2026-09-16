@@ -10,6 +10,7 @@ import '../../../data/models/nearby_place.dart';
 import '../../../data/models/tour_course.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/photo_attribution_badge.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 import '../../../shared/widgets/save_course_button.dart';
 import '../../auth/data/auth_providers.dart';
@@ -48,13 +49,34 @@ class CourseDetailScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(AppRadius.card),
                     child: AspectRatio(
                       aspectRatio: 16 / 10,
-                      child: AppNetworkImage(
-                        imageUrl: course.imageUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (_, _) =>
-                            const PhotoFallback(icon: Icons.route_outlined),
-                        errorWidget: (_, _, _) =>
-                            const PhotoFallback(icon: Icons.route_outlined),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          AppNetworkImage(
+                            imageUrl: course.imageUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (_, _) =>
+                                const PhotoFallback(icon: Icons.route_outlined),
+                            errorWidget: (_, _, _) =>
+                                const PhotoFallback(icon: Icons.route_outlined),
+                          ),
+                          // 코스 대표사진은 보통 정류지 사진 중 하나를 그대로 쓴다 —
+                          // 같은 URL을 쓰는 정류지의 출처 표기를 그대로 붙인다.
+                          Positioned(
+                            right: 8,
+                            bottom: 8,
+                            child: Builder(
+                              builder: (context) {
+                                final source = course.stops.where((s) => s.imageUrl == course.imageUrl);
+                                final match = source.isEmpty ? null : source.first;
+                                return PhotoAttributionBadge(
+                                  name: match?.photoAttributionName,
+                                  url: match?.photoAttributionUrl,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -297,18 +319,41 @@ class _StopPhotoCard extends StatelessWidget {
       child: SizedBox(
         height: 84,
         width: double.infinity,
-        child: stop.imageUrl == null
-            ? const PhotoFallback(icon: Icons.route_outlined)
-            : AppNetworkImage(
-                imageUrl: stop.imageUrl!,
-                fit: BoxFit.cover,
-                placeholder: (_, _) =>
-                    const PhotoFallback(icon: Icons.route_outlined),
-                errorWidget: (_, _, _) =>
-                    const PhotoFallback(icon: Icons.route_outlined),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _StopPhoto(stop: stop),
+            if (stop.photoAttributionName != null)
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: PhotoAttributionBadge(
+                  name: stop.photoAttributionName,
+                  url: stop.photoAttributionUrl,
+                ),
               ),
+          ],
+        ),
       ),
     );
+  }
+}
+
+class _StopPhoto extends StatelessWidget {
+  const _StopPhoto({required this.stop});
+
+  final CourseStop stop;
+
+  @override
+  Widget build(BuildContext context) {
+    return stop.imageUrl == null
+        ? const PhotoFallback(icon: Icons.route_outlined)
+        : AppNetworkImage(
+            imageUrl: stop.imageUrl!,
+            fit: BoxFit.cover,
+            placeholder: (_, _) => const PhotoFallback(icon: Icons.route_outlined),
+            errorWidget: (_, _, _) => const PhotoFallback(icon: Icons.route_outlined),
+          );
   }
 }
 

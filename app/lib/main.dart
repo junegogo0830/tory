@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
-import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
-import 'core/theme/brightness_scope.dart';
 import 'features/auth/data/auth_providers.dart';
 
 Future<void> main() async {
@@ -26,10 +24,15 @@ class _StartupSplash extends StatefulWidget {
 }
 
 class _StartupSplashState extends State<_StartupSplash> {
-  bool _ready = false;
+  // 웹은 web/index.html의 정적 HTML 스플래시(#app-loading)가 이미 이 역할을
+  // 한다 — 거기 더해 여기서 또 다른 배경색/크기로 스플래시를 얹으면 로고가
+  // 두 번 다른 모습으로 바뀌는 것처럼 보인다. 네이티브(APK/iOS)는 그런
+  // 정적 웹 스플래시가 없어서 이 위젯이 대신 그 gap을 메운다.
+  bool _ready = kIsWeb;
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) return;
     Future<void>.delayed(const Duration(milliseconds: 1200), () {
       if (mounted) setState(() => _ready = true);
     });
@@ -38,8 +41,8 @@ class _StartupSplashState extends State<_StartupSplash> {
   Widget build(BuildContext context) => _ready ? widget.child : const MaterialApp(
     debugShowCheckedModeBanner: false,
     home: Scaffold(
-      backgroundColor: Color(0xFFF7F4EE),
-      body: Center(child: Image(image: AssetImage('assets/logo/logo_icon.png'), width: 112)),
+      backgroundColor: Color(0xFFF2EFEA),
+      body: Center(child: Image(image: AssetImage('assets/logo/logo.png'), width: 220)),
     ),
   );
 }
@@ -71,15 +74,11 @@ class _YetgilAppState extends ConsumerState<YetgilApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BrightnessScope(
-      builder: (context) => MaterialApp.router(
-        title: '옛길',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: AppColors.darkModeNotifier.value ? ThemeMode.dark : ThemeMode.light,
-        routerConfig: appRouter,
-      ),
+    return MaterialApp.router(
+      title: '옛길',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      routerConfig: appRouter,
     );
   }
 }

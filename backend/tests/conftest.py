@@ -61,7 +61,11 @@ def _no_live_google_places_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _no_lookup(self: GooglePlacesService, query: str) -> str | None:  # noqa: ARG001
         return None
 
+    async def _no_nearby(self: GooglePlacesService, **kwargs: object) -> list:  # noqa: ARG001
+        return []
+
     monkeypatch.setattr(GooglePlacesService, "_lookup", _no_lookup)
+    monkeypatch.setattr(GooglePlacesService, "find_nearby", _no_nearby)
 
 
 @pytest.fixture(autouse=True)

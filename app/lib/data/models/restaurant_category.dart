@@ -1,11 +1,22 @@
 /// 카테고리별 맛집 발견 카드 한 장에 들어가는 맛집 하나.
 class RestaurantItem {
-  const RestaurantItem({required this.id, required this.name, required this.region, this.imageUrl});
+  const RestaurantItem({
+    required this.id,
+    required this.name,
+    required this.region,
+    this.imageUrl,
+    this.photoAttributionName,
+    this.photoAttributionUrl,
+  });
 
   final String id;
   final String name;
   final String region;
   final String? imageUrl;
+  // imageUrl이 구글 플레이스 사진일 때만 채워진다 — 구글 이용약관상 사진을
+  // 보여줄 땐 기여자 출처 표기를 같이 보여줘야 한다.
+  final String? photoAttributionName;
+  final String? photoAttributionUrl;
 
   factory RestaurantItem.fromJson(Map<String, dynamic> json) {
     return RestaurantItem(
@@ -13,6 +24,8 @@ class RestaurantItem {
       name: json['name'] as String,
       region: json['region'] as String,
       imageUrl: json['image_url'] as String?,
+      photoAttributionName: json['photo_attribution_name'] as String?,
+      photoAttributionUrl: json['photo_attribution_url'] as String?,
     );
   }
 }

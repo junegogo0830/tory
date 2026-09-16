@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 
 /// compare_screen의 "현재" 비교 패널에 바로 심는 실시간 로드뷰.
 ///
@@ -28,16 +29,37 @@ class _WebFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // PhotoFallback과 같은 톤(따뜻한 브라운 그라데이션)으로 맞춰서, 이 화면만
+    // 갑자기 새까맣게 "깨진 것처럼" 보이지 않게 한다 — 안드로이드 앱에서는
+    // 이 위젯 대신 실제 로드뷰가 바로 뜬다(_NativeInlineRoadview 참고).
     return DecoratedBox(
-      decoration: BoxDecoration(color: AppColors.ink),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.accentTint, AppColors.paper],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: Center(
-        child: TextButton.icon(
-          onPressed: () {
-            final uri = Uri.parse('${AppConstants.apiBaseUrl}/roadview/$locationId');
-            launchUrl(uri, webOnlyWindowName: '_blank');
-          },
-          icon: const Icon(Icons.open_in_new, color: Colors.white),
-          label: const Text('새 탭에서 로드뷰 보기', style: TextStyle(color: Colors.white)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.streetview, size: 36, color: AppColors.inkTertiary),
+            const SizedBox(height: 8),
+            Text(
+              '로드뷰는 앱에서 바로 볼 수 있어요',
+              style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                final uri = Uri.parse('${AppConstants.apiBaseUrl}/roadview/$locationId');
+                launchUrl(uri, webOnlyWindowName: '_blank');
+              },
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: const Text('새 탭에서 로드뷰 보기'),
+            ),
+          ],
         ),
       ),
     );

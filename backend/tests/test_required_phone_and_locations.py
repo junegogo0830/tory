@@ -63,7 +63,7 @@ def test_hero_detail_available_without_search_or_cache(slug, monkeypatch):
 
 
 def test_tour_search_uses_only_tourism_source(monkeypatch):
-    async def attractions(self, query, num_rows):
+    async def attractions(self, query, num_rows, *, content_type_id='12'):
         assert query == '공원'
         return [LocationResponse(id='tour-1', name='공원', region='강릉', description='',
                                  past_year=2026, current_year=2026, source='tourapi')]
@@ -74,6 +74,34 @@ def test_tour_search_uses_only_tourism_source(monkeypatch):
     response = TestClient(app).get('/api/location/tour-search', params={'query': '공원'})
     assert response.status_code == 200
     assert response.json()[0]['source'] == 'tourapi'
+
+
+def test_tour_search_passes_content_type_id_filter(monkeypatch):
+    """홈 화면 검색 필터 — content_type_id를 넘기면 그 카테고리로 검색을 좁힌다."""
+    seen = {}
+    async def attractions(self, query, num_rows, *, content_type_id='12'):
+        seen['content_type_id'] = content_type_id
+        return []
+    monkeypatch.setattr(TourApiService, 'search_attractions', attractions)
+    response = TestClient(app).get(
+        '/api/location/tour-search', params={'query': '맛집', 'content_type_id': '39'}
+    )
+    assert response.status_code == 200
+    assert seen['content_type_id'] == '39'
+
+
+def test_tour_search_rejects_unknown_content_type_id(monkeypatch):
+    """알 수 없는 content_type_id는 기본값(관광지)으로 조용히 대체한다."""
+    seen = {}
+    async def attractions(self, query, num_rows, *, content_type_id='12'):
+        seen['content_type_id'] = content_type_id
+        return []
+    monkeypatch.setattr(TourApiService, 'search_attractions', attractions)
+    response = TestClient(app).get(
+        '/api/location/tour-search', params={'query': '아무거나', 'content_type_id': 'nope'}
+    )
+    assert response.status_code == 200
+    assert seen['content_type_id'] == '12'
 
 
 def test_leave_region_requires_login():

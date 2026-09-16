@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/yetgil_mark.dart';
+import 'search_filter_sheet.dart';
 import 'top_attractions_ticker.dart';
 
 /// 홈 상단 기능 헤더 — 로고/타이틀, 프로필, 검색, HOT 지역을 실제 GUI
@@ -13,10 +14,18 @@ import 'top_attractions_ticker.dart';
 /// 곳이 없어서 굳이 위치 권한을 요구할 이유가 없었다 — 인사말 문구는
 /// 시간대만으로도 충분히 자연스럽다).
 class WeatherTopBanner extends ConsumerWidget {
-  const WeatherTopBanner({super.key, required this.controller, required this.onSubmitted});
+  const WeatherTopBanner({
+    super.key,
+    required this.controller,
+    required this.onSubmitted,
+    required this.categoryFilter,
+    required this.onCategoryFilterChanged,
+  });
 
   final TextEditingController controller;
   final VoidCallback onSubmitted;
+  final String? categoryFilter;
+  final ValueChanged<String?> onCategoryFilterChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,6 +68,8 @@ class WeatherTopBanner extends ConsumerWidget {
             controller: controller,
             onSubmitted: onSubmitted,
             hintText: _greetingFor(DateTime.now()),
+            categoryFilter: categoryFilter,
+            onCategoryFilterChanged: onCategoryFilterChanged,
           ),
           const SizedBox(height: 10),
           const HotTicker(),
@@ -73,14 +84,25 @@ class _SearchField extends StatelessWidget {
     required this.controller,
     required this.onSubmitted,
     required this.hintText,
+    required this.categoryFilter,
+    required this.onCategoryFilterChanged,
   });
 
   final TextEditingController controller;
   final VoidCallback onSubmitted;
   final String hintText;
+  final String? categoryFilter;
+  final ValueChanged<String?> onCategoryFilterChanged;
+
+  Future<void> _openFilterSheet(BuildContext context) async {
+    final picked = await showSearchFilterSheet(context, current: categoryFilter);
+    if (picked == null) return; // 취소 — 기존 필터 유지
+    onCategoryFilterChanged(picked.isEmpty ? null : picked);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hasFilter = categoryFilter != null;
     return TextField(
       controller: controller,
       textInputAction: TextInputAction.search,
@@ -93,12 +115,16 @@ class _SearchField extends StatelessWidget {
         hintMaxLines: 1,
         prefixIcon: Icon(Icons.search, color: AppColors.inkSecondary, size: 20),
         prefixIconConstraints: const BoxConstraints(minWidth: 40),
-        // 검색 필터(기간/카테고리 등)는 아직 없다 — 목업의 자리만 우선 잡아둔다.
         suffixIcon: IconButton(
-          icon: Icon(Icons.tune, color: AppColors.inkSecondary, size: 20),
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('아직 준비 중인 기능이에요')),
+          icon: Icon(
+            hasFilter ? Icons.tune : Icons.tune_outlined,
+            color: hasFilter ? AppColors.accent : AppColors.inkSecondary,
+            size: 20,
           ),
+          tooltip: hasFilter
+              ? searchCategoryOptions.firstWhere((o) => o.id == categoryFilter).label
+              : '검색 필터',
+          onPressed: () => _openFilterSheet(context),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
         // 검색창만 배경(fieldBg)과 다른 흰색으로 — 헤더 배경에 묻히지 않고

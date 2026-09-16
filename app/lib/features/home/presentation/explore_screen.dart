@@ -33,6 +33,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.paper,
+      appBar: AppBar(title: const Text('둘러보기')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -47,7 +48,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
                   children: [
-                    const _Header(),
+                    Text('추억이 머무는 동네를 둘러보세요', style: AppTypography.subhead),
                     const SizedBox(height: 20),
                     SizedBox(
                       height: 40,
@@ -108,22 +109,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('둘러보기', style: AppTypography.title.copyWith(fontSize: 22)),
-        const SizedBox(height: 4),
-        Text('추억이 머무는 동네를 둘러보세요', style: AppTypography.subhead),
-      ],
     );
   }
 }

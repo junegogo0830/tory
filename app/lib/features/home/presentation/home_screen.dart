@@ -36,6 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _carouselIndex = 0;
   List<HometownLocation> _suggestions = [];
   bool _isSearching = false;
+  String? _categoryFilter;
 
   @override
   void initState() {
@@ -77,7 +78,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _search(String query) async {
     try {
-      final results = await ref.read(locationRepositoryProvider).searchLocations(query);
+      final repository = ref.read(locationRepositoryProvider);
+      // 카테고리 필터가 있으면 등록 관광지 중 그 카테고리만(음식점/문화시설 등),
+      // 없으면 기존처럼 주소·학교·아파트까지 포함하는 통합 검색을 쓴다.
+      final results = _categoryFilter != null
+          ? await repository.searchTourLocations(query, contentTypeId: _categoryFilter)
+          : await repository.searchLocations(query);
       // 응답이 늦게 와서 이미 다른 검색어로 바뀌었으면 무시한다(오래된 결과로 덮어쓰기 방지).
       if (!mounted || _queryController.text.trim() != query) return;
       setState(() {
@@ -90,6 +96,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _suggestions = [];
         _isSearching = false;
       });
+    }
+  }
+
+  void _onCategoryFilterChanged(String? category) {
+    setState(() => _categoryFilter = category);
+    final query = _queryController.text.trim();
+    if (query.isNotEmpty) {
+      setState(() => _isSearching = true);
+      _search(query);
     }
   }
 
@@ -142,6 +157,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 isSearching: _isSearching,
                 suggestions: _suggestions,
                 onSelectSuggestion: _selectSuggestion,
+                categoryFilter: _categoryFilter,
+                onCategoryFilterChanged: _onCategoryFilterChanged,
               ),
               loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
               error: (_, _) => Center(
@@ -166,6 +183,8 @@ class _HomeContent extends StatelessWidget {
     required this.isSearching,
     required this.suggestions,
     required this.onSelectSuggestion,
+    required this.categoryFilter,
+    required this.onCategoryFilterChanged,
   });
 
   final HometownLocation? primary;
@@ -177,13 +196,20 @@ class _HomeContent extends StatelessWidget {
   final bool isSearching;
   final List<HometownLocation> suggestions;
   final ValueChanged<HometownLocation> onSelectSuggestion;
+  final String? categoryFilter;
+  final ValueChanged<String?> onCategoryFilterChanged;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
       children: [
-        WeatherTopBanner(controller: controller, onSubmitted: onSubmit),
+        WeatherTopBanner(
+          controller: controller,
+          onSubmitted: onSubmit,
+          categoryFilter: categoryFilter,
+          onCategoryFilterChanged: onCategoryFilterChanged,
+        ),
         if (showSuggestions) ...[
           const SizedBox(height: 8),
           _SearchSuggestions(
