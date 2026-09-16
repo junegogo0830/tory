@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../auth/data/auth_providers.dart';
 
@@ -159,16 +158,17 @@ class QuickActionGrid extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        // 목업처럼 화면 좌우 기본 여백만 유지하고(추가 인셋 없이), 정사각형
-        // 타일 4열 x 2행으로 — 칸 사이 간격만으로 크기를 조절한다.
+        const SizedBox(height: 10),
+        // 목업처럼 화면 좌우 기본 여백만 유지하고(추가 인셋 없이), 원형
+        // 아이콘 배지 + 아래 라벨 형태로 4열 x 2행 — 카드 배경/테두리 없이
+        // 아이콘 배지 자체만 파스텔 색으로 채운다.
         GridView.count(
           crossAxisCount: 4,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 1,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 6,
+          childAspectRatio: 1.05,
           children: [for (final action in _quickActions) _QuickActionTile(action: action)],
         ),
       ],
@@ -185,27 +185,25 @@ class _QuickActionTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return InkWell(
       onTap: () => action.onTap(context, ref),
-      borderRadius: BorderRadius.circular(AppRadius.tile),
-      child: Container(
-        decoration: BoxDecoration(
-          color: action.color,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(color: AppColors.accent, width: 1.2),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(action.icon, color: AppColors.accentDeep, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              action.label,
-              style: AppTypography.caption.copyWith(color: AppColors.ink, fontSize: 12, fontWeight: FontWeight.w600),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+      borderRadius: BorderRadius.circular(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(color: action.color, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Icon(action.icon, color: AppColors.accentDeep, size: 20),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            action.label,
+            style: AppTypography.caption.copyWith(color: AppColors.ink, fontSize: 12, fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
