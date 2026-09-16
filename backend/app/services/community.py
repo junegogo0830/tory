@@ -294,7 +294,10 @@ class CommunityService:
 
     async def _save_photo(self, file: UploadFile) -> str:
         return await save_uploaded_photo(
-            file, upload_dir=settings.community_upload_dir, max_bytes=settings.community_upload_max_bytes
+            file,
+            upload_dir=settings.community_upload_dir,
+            max_bytes=settings.community_upload_max_bytes,
+            public_path_prefix="community",
         )
 
     @staticmethod

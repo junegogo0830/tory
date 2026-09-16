@@ -246,10 +246,12 @@ class ProfileService:
         return user
 
     async def update_photo(self, db: AsyncSession, user: User, file: UploadFile) -> User:
-        filename = await save_uploaded_photo(
-            file, upload_dir=settings.profile_upload_dir, max_bytes=settings.profile_upload_max_bytes
+        user.profile_image_url = await save_uploaded_photo(
+            file,
+            upload_dir=settings.profile_upload_dir,
+            max_bytes=settings.profile_upload_max_bytes,
+            public_path_prefix="profile",
         )
-        user.profile_image_url = f"/uploads/profile/{filename}"
         await db.commit()
         await db.refresh(user)
         return user

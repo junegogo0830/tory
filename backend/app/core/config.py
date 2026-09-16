@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     custom_course_upload_dir: str = str(_REPO_ROOT / "backend" / "uploads" / "custom-course")
     custom_course_upload_max_bytes: int = 8 * 1024 * 1024
 
+    # 비어 있으면(로컬 개발) 사진을 로컬 디스크에 저장한다. 배포 환경(Cloud Run)은
+    # 로컬 디스크가 인스턴스마다 별개고 재시작되면 사라지는 휘발성 저장소라,
+    # 여기에 실제 버킷 이름을 채우면 photo_upload.py가 Google Cloud Storage에
+    # 영구 저장하도록 바뀐다.
+    gcs_bucket_name: str = ""
+
     # 개발 편의를 위한 기본값이지 실제 값이 아니다. 배포 전 반드시 .env에서
     # `openssl rand -hex 32`로 생성한 값으로 덮어써야 한다.
     jwt_secret_key: str = "dev-only-insecure-secret-change-me"

@@ -22,7 +22,7 @@ def _is_allowed(url: httpx.URL) -> bool:
             and any(url.host == h or url.host.endswith("." + h) for h in _ALLOWED_HOST_SUFFIXES))
 
 
-async def _fetch(url: str) -> tuple[float, bytes, str, str]:
+async def _fetch_once(url: str) -> tuple[float, bytes, str, str]:
     async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
         target = httpx.URL(url)
         for _ in range(4):
@@ -52,6 +52,16 @@ async def _fetch(url: str) -> tuple[float, bytes, str, str]:
                     _cache.popitem(last=False)
                 return entry
     raise HTTPException(502, "이미지 주소 이동이 너무 많아요")
+
+
+async def _fetch(url: str) -> tuple[float, bytes, str, str]:
+    """visitkorea.or.kr 쪽이 가끔 순간적으로 연결을 끊는 경우가 있어(TourAPI
+    본 API에서도 같은 증상을 확인했다), 실패하면 짧게 대기 후 한 번 더 시도한다."""
+    try:
+        return await _fetch_once(url)
+    except httpx.HTTPError:
+        await asyncio.sleep(0.5)
+        return await _fetch_once(url)
 
 
 async def get_image(url: str) -> tuple[float, bytes, str, str]:

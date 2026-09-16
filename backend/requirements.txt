@@ -10,6 +10,7 @@ PyJWT==2.13.0
 bcrypt==4.3.0
 anthropic==1.4.0
 python-multipart==0.0.20
+google-cloud-storage==2.19.0
 # Windows doesn't ship IANA tz data, so zoneinfo.ZoneInfo("Asia/Seoul") (course_planner.py)
 # needs this fallback data package — Linux/Mac already have it at the OS level.
 tzdata==2026.4

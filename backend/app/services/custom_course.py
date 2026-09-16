@@ -266,10 +266,12 @@ class CustomCourseService:
 
     async def upload_photo(self, file: UploadFile) -> str:
         """코스 장소에 직접 등록하는 사진 — 검색 결과 썸네일을 대체한다."""
-        filename = await save_uploaded_photo(
-            file, upload_dir=settings.custom_course_upload_dir, max_bytes=settings.custom_course_upload_max_bytes
+        return await save_uploaded_photo(
+            file,
+            upload_dir=settings.custom_course_upload_dir,
+            max_bytes=settings.custom_course_upload_max_bytes,
+            public_path_prefix="custom-course",
         )
-        return f"/uploads/custom-course/{filename}"
 
     async def require_course(self, db: AsyncSession, course_id: int) -> CustomCourse:
         """다른 서비스(추억 매칭 등)가 코스 원본 row가 필요할 때 쓰는 공개 진입점."""
