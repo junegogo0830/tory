@@ -16,7 +16,6 @@ import '../data/home_providers.dart';
 import 'widgets/community_preview_section.dart';
 import 'widgets/hero_highlight_banner.dart';
 import 'widgets/kakao_restaurant_card.dart';
-import 'widgets/nearby_attractions_tile.dart';
 import 'widgets/notice_banner.dart';
 import 'widgets/quick_action_grid.dart';
 import 'widgets/restaurant_categories_carousel.dart';
@@ -205,8 +204,6 @@ class _HomeContent extends StatelessWidget {
         const TodaysMemoryCard(),
         const SizedBox(height: 30),
         const RestaurantCategoriesCarousel(key: ValueKey('home-restaurants')),
-        const SizedBox(height: 24),
-        const NearbyAttractionsTile(),
         const SizedBox(height: 30),
         const CommunityPreviewSection(),
         const SizedBox(height: 30),

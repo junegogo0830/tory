@@ -241,10 +241,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/nearby-map',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => NearbyMapScreen(
-        lat: double.parse(state.uri.queryParameters['lat']!),
-        lng: double.parse(state.uri.queryParameters['lng']!),
-      ),
+      builder: (context, state) => const NearbyMapScreen(),
     ),
     GoRoute(
       path: '/notifications',

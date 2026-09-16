@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -15,53 +14,9 @@ class _QuickAction {
   final void Function(BuildContext context, WidgetRef ref) onTap;
 }
 
-Future<void> _openNearbyMap(BuildContext context, WidgetRef ref) async {
-  showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
-    ),
-  );
-
-  void closeLoading() {
-    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-  }
-
-  void showMessage(String message) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  try {
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      closeLoading();
-      showMessage('위치 권한이 필요해요');
-      return;
-    }
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      closeLoading();
-      showMessage('기기의 위치 서비스를 켜주세요');
-      return;
-    }
-
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 8)),
-    );
-    closeLoading();
-    if (context.mounted) {
-      context.push('/nearby-map?lat=${position.latitude}&lng=${position.longitude}');
-    }
-  } catch (_) {
-    closeLoading();
-    showMessage('위치를 가져오지 못했어요. 다시 시도해주세요');
-  }
+/// GPS 없이 들어간다 — 화면(NearbyMapScreen) 안에서 장소를 직접 검색해서 고른다.
+void _openNearbyMap(BuildContext context, WidgetRef ref) {
+  context.push('/nearby-map');
 }
 
 /// "코스 등록"/"친구 찾기"처럼 로그인이 있어야 의미 있는 액션 공용 처리 —
