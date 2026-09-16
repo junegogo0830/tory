@@ -15,7 +15,33 @@ Future<void> main() async {
     nativeAppKey: AppConstants.kakaoNativeAppKey,
     javaScriptAppKey: AppConstants.kakaoJavaScriptAppKey,
   );
-  runApp(const ProviderScope(child: YetgilApp()));
+  runApp(const ProviderScope(child: _StartupSplash(child: YetgilApp())));
+}
+
+class _StartupSplash extends StatefulWidget {
+  const _StartupSplash({required this.child});
+  final Widget child;
+  @override
+  State<_StartupSplash> createState() => _StartupSplashState();
+}
+
+class _StartupSplashState extends State<_StartupSplash> {
+  bool _ready = false;
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _ready = true);
+    });
+  }
+  @override
+  Widget build(BuildContext context) => _ready ? widget.child : const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: Scaffold(
+      backgroundColor: Color(0xFFF7F4EE),
+      body: Center(child: Image(image: AssetImage('assets/logo/logo_icon.png'), width: 112)),
+    ),
+  );
 }
 
 class YetgilApp extends ConsumerStatefulWidget {

@@ -46,6 +46,10 @@ _CONTENT_TYPE_LABELS = {
 # 실제 순천 동명인 "저전동"으로 교체했다 — id 키(suncheon-jeonpo)는 여러 곳에서
 # 참조하므로 그대로 두고 name/설명 콘텐츠만 바꿨다.
 _MOCK_LOCATIONS: dict[str, LocationResponse] = {
+    # 이 id는 recommendation.py의 "순천만 노을 산책 코스"와 archive.py 로드뷰
+    # 데이터가 그대로 참조하므로 여기서 지우면 그 코스 자체가 깨진다 — 홈
+    # 화면 "최근" 캐러셀에 너무 자주 나온다는 피드백은 그 캐러셀 쪽(프론트
+    # location_repository.dart의 _recentLocationIds)에서만 뺐다.
     "suncheon-jeonpo": LocationResponse(
         id="suncheon-jeonpo",
         name="순천 원도심 골목",
@@ -54,6 +58,8 @@ _MOCK_LOCATIONS: dict[str, LocationResponse] = {
         past_year=1998,
         current_year=2026,
         is_cold_spot=False,
+        latitude=34.9506097806659,
+        longitude=127.487382934915,
     ),
     "gunsan-jungang": LocationResponse(
         id="gunsan-jungang",
@@ -63,6 +69,9 @@ _MOCK_LOCATIONS: dict[str, LocationResponse] = {
         past_year=2003,
         current_year=2026,
         is_cold_spot=False,
+        # 좌표는 카카오 지오코딩으로 한 번 구해서 고정했다(아래 참고).
+        latitude=35.9849440676402,
+        longitude=126.715346498596,
     ),
     "yeongwol-jang": LocationResponse(
         id="yeongwol-jang",
@@ -72,6 +81,8 @@ _MOCK_LOCATIONS: dict[str, LocationResponse] = {
         past_year=1995,
         current_year=2026,
         is_cold_spot=True,
+        latitude=37.1820504550436,
+        longitude=128.47764080316568,
     ),
 }
 
@@ -405,10 +416,14 @@ class TourApiService:
                 return None
             return LocationResponse.model_validate(json.loads(cached))
 
-        location = _MOCK_LOCATIONS.get(location_id)
-        if location is None:
-            return None
-        return await self._enrich_curated(location)
+        # 좌표를 고정값으로 미리 채워둬서(위 _MOCK_LOCATIONS 참고), 여기서는
+        # _enrich_curated(TourAPI+카카오 지오코딩 실시간 호출)를 타지 않는다.
+        # 예전엔 홈 화면이 뜰 때마다 이 무거운 조회를 새로 해서(캐싱을 걸어도
+        # Redis가 아직 운영에 붙어있지 않아 인스턴스마다 따로 놀았다), 외부
+        # API가 느리거나 실패하면(재시도 포함) 응답이 15초 넘게 걸리는 원인이
+        # 됐었다 — 큐레이션 장소 3곳은 내용이 거의 안 바뀌니 굳이 매번 실시간
+        # 조회할 이유가 없다.
+        return _MOCK_LOCATIONS.get(location_id)
 
     async def _get_tourapi_detail(self, location_id: str) -> LocationResponse | None:
         """검색 결과에서 선택한 `tour-{contentId}` 장소를 상세 조회한다.

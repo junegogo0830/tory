@@ -11,8 +11,11 @@ class LocationRepository {
 
   /// 실제 "최근 둘러본 골목" 히스토리(로컬 저장) 기능이 붙기 전까지는
   /// 이 seed ID들을 백엔드에서 최신 상태로 조회해 보여준다.
+  ///
+  /// 'suncheon-jeonpo'는 뺐다 — 이 3곳 중 하나로 고정 노출되다 보니 매번
+  /// 반복해서 뜬다는 피드백이 있었다(코스 추천 쪽 "순천만 노을 산책 코스"는
+  /// 별개 기능이라 백엔드 데이터는 그대로 남아있고, 여기 캐러셀에서만 뺐다).
   static const _recentLocationIds = [
-    'suncheon-jeonpo',
     'gunsan-jungang',
     'yeongwol-jang',
   ];
