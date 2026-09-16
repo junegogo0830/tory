@@ -13,13 +13,14 @@ import 'terms_text.dart';
 
 const _kMinPasswordLength = 8;
 
-/// 자체 회원가입 화면 — 아이디/비밀번호, 약관 동의를 한 화면에서 순서대로
-/// 진행한다. 성공하면 로그인 상태로 홈에 진입한다.
+enum _PhoneStep { idle, codeSent, verified }
+
+/// 자체 회원가입 화면 — 아이디/비밀번호, 휴대폰 인증(선택), 약관 동의를 한
+/// 화면에서 순서대로 진행한다. 성공하면 로그인 상태로 홈에 진입한다.
 ///
-/// 휴대폰 본인확인은 뺐다 — SMS 발송 업체(NCP SENS 등)가 전부 사업자 등록을
-/// 요구해서 개인 프로젝트 단계에서는 막혀 있다. AuthRepository의
-/// sendPhoneVerificationCode/verifyPhoneVerificationCode는 나중에 업체를
-/// 구하면 이 화면에 다시 연결할 수 있게 그대로 남아있다.
+/// 휴대폰 인증은 선택이다 — NCP SENS 발신번호가 아직 승인 전이라 지금은
+/// 인증번호가 실제 문자 대신 서버 로그로만 남는다. 그래서 인증을 건너뛰어도
+/// 가입은 되게 해뒀다 — 발신번호가 승인되면 이 화면 수정 없이 바로 실동작한다.
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
@@ -31,10 +32,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _codeController = TextEditingController();
 
   Timer? _debounce;
   bool _checkingUsername = false;
   bool? _usernameAvailable;
+
+  _PhoneStep _phoneStep = _PhoneStep.idle;
+  bool _sendingCode = false;
+  bool _verifyingCode = false;
+  String? _phoneError;
+  String? _phoneVerificationToken;
 
   bool _agreeTerms = false;
   bool _agreePrivacy = false;
@@ -46,6 +55,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   void initState() {
     super.initState();
     _usernameController.addListener(_onUsernameChanged);
+    _phoneController.addListener(_onPhoneChanged);
+  }
+
+  void _onPhoneChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -53,9 +67,62 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     _debounce?.cancel();
     _usernameController.removeListener(_onUsernameChanged);
     _usernameController.dispose();
+    _phoneController.removeListener(_onPhoneChanged);
     _passwordController.dispose();
     _confirmController.dispose();
+    _phoneController.dispose();
+    _codeController.dispose();
     super.dispose();
+  }
+
+  bool get _phoneFormatValid => RegExp(r'^01[016789]\d{7,8}$').hasMatch(_phoneController.text.replaceAll(RegExp(r'\D'), ''));
+
+  Future<void> _sendCode() async {
+    if (!_phoneFormatValid || _sendingCode) return;
+    setState(() {
+      _sendingCode = true;
+      _phoneError = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).sendPhoneVerificationCode(_phoneController.text.trim());
+      if (mounted) setState(() => _phoneStep = _PhoneStep.codeSent);
+    } catch (_) {
+      if (mounted) setState(() => _phoneError = '인증번호를 보내지 못했어요. 잠시 후 다시 시도해주세요');
+    } finally {
+      if (mounted) setState(() => _sendingCode = false);
+    }
+  }
+
+  Future<void> _verifyCode() async {
+    if (_codeController.text.trim().isEmpty || _verifyingCode) return;
+    setState(() {
+      _verifyingCode = true;
+      _phoneError = null;
+    });
+    try {
+      final token = await ref
+          .read(authRepositoryProvider)
+          .verifyPhoneVerificationCode(_phoneController.text.trim(), _codeController.text.trim());
+      if (mounted) {
+        setState(() {
+          _phoneVerificationToken = token;
+          _phoneStep = _PhoneStep.verified;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _phoneError = '인증번호가 올바르지 않거나 만료됐어요');
+    } finally {
+      if (mounted) setState(() => _verifyingCode = false);
+    }
+  }
+
+  void _resetPhone() {
+    setState(() {
+      _phoneStep = _PhoneStep.idle;
+      _phoneVerificationToken = null;
+      _phoneError = null;
+      _codeController.clear();
+    });
   }
 
   bool get _usernameFormatValid => RegExp(r'^[a-zA-Z0-9_]{4,20}$').hasMatch(_usernameController.text.trim());
@@ -100,6 +167,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           agreeTerms: _agreeTerms,
           agreePrivacy: _agreePrivacy,
           agreeMarketing: _agreeMarketing,
+          phoneVerificationToken: _phoneVerificationToken,
         );
     if (!mounted) return;
     final authState = ref.read(authStateProvider);
@@ -183,6 +251,27 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   Text('비밀번호가 일치하지 않아요', style: AppTypography.caption.copyWith(color: Colors.red)),
                 ],
                 const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Text('휴대폰 인증', style: AppTypography.headline),
+                    const SizedBox(width: 6),
+                    Text('(선택)', style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _PhoneVerificationSection(
+                  step: _phoneStep,
+                  phoneController: _phoneController,
+                  codeController: _codeController,
+                  phoneFormatValid: _phoneFormatValid,
+                  sendingCode: _sendingCode,
+                  verifyingCode: _verifyingCode,
+                  error: _phoneError,
+                  onSendCode: _sendCode,
+                  onVerifyCode: _verifyCode,
+                  onReset: _resetPhone,
+                ),
+                const SizedBox(height: 22),
                 Text('약관 동의', style: AppTypography.headline),
                 const SizedBox(height: 6),
                 _AllAgreeRow(
@@ -230,6 +319,132 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PhoneVerificationSection extends StatelessWidget {
+  const _PhoneVerificationSection({
+    required this.step,
+    required this.phoneController,
+    required this.codeController,
+    required this.phoneFormatValid,
+    required this.sendingCode,
+    required this.verifyingCode,
+    required this.error,
+    required this.onSendCode,
+    required this.onVerifyCode,
+    required this.onReset,
+  });
+
+  final _PhoneStep step;
+  final TextEditingController phoneController;
+  final TextEditingController codeController;
+  final bool phoneFormatValid;
+  final bool sendingCode;
+  final bool verifyingCode;
+  final String? error;
+  final VoidCallback onSendCode;
+  final VoidCallback onVerifyCode;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    if (step == _PhoneStep.verified) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.pastelMint,
+          borderRadius: BorderRadius.circular(AppRadius.field),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('${phoneController.text} 인증 완료', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: onReset,
+              child: Text('변경', style: AppTypography.caption.copyWith(color: AppColors.inkSecondary)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final phoneStepBusy = step == _PhoneStep.codeSent;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: phoneController,
+                enabled: !phoneStepBusy,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(hintText: '01012345678'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 48,
+              child: OutlinedButton(
+                onPressed: phoneStepBusy || !phoneFormatValid || sendingCode ? null : onSendCode,
+                child: sendingCode
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                      )
+                    : Text(phoneStepBusy ? '재전송' : '인증번호 받기'),
+              ),
+            ),
+          ],
+        ),
+        if (phoneStepBusy) ...[
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: codeController,
+                  keyboardType: TextInputType.number,
+                  onSubmitted: (_) => onVerifyCode(),
+                  decoration: const InputDecoration(hintText: '인증번호 6자리'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: verifyingCode ? null : onVerifyCode,
+                  child: verifyingCode
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('확인'),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (error != null) ...[
+          const SizedBox(height: 4),
+          Text(error!, style: AppTypography.caption.copyWith(color: Colors.red)),
+        ],
+        const SizedBox(height: 4),
+        Text(
+          '인증하지 않아도 가입할 수 있어요',
+          style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+        ),
+      ],
     );
   }
 }

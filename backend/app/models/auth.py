@@ -58,10 +58,6 @@ class UsernameAvailableResponse(BaseModel):
 
 
 class SignupRequest(BaseModel):
-    # 휴대폰 본인확인은 뺐다 — SMS 발송 업체(NCP SENS 등)가 전부 사업자 등록을
-    # 요구해서 개인 프로젝트 단계에서는 막혀 있다. phone/send-code, verify-code
-    # 엔드포인트와 PhoneVerificationService는 나중에 업체를 구해 다시 연결할 수
-    # 있게 그대로 남겨뒀다(services/phone_verification.py 참고).
     username: str
     password: str = Field(min_length=8, max_length=72)
     # 필수 약관 — 회원가입 화면에서 둘 다 체크해야 제출 버튼이 활성화된다.
@@ -69,6 +65,11 @@ class SignupRequest(BaseModel):
     agree_privacy: bool
     # 선택 약관 — 기본값 False.
     agree_marketing: bool = False
+    # phone/verify-code로 받은 토큰 — 선택 입력. NCP SENS 발신번호가 아직
+    # 승인 전이라 실제 문자 대신 서버 로그로만 인증번호가 남는 상태라(SMS
+    # 서비스는 사업자 등록/발신번호 사전등록이 필요), 회원가입 자체를 막지
+    # 않도록 필수로 만들지 않았다 — 승인되면 그대로 실동작한다.
+    phone_verification_token: str | None = None
 
     @field_validator("username")
     @classmethod

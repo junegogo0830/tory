@@ -94,16 +94,16 @@ class AuthRepository {
 
   /// 자체 회원가입 — 약관 동의와 함께 보낸다. 성공하면 로그인 상태가 된다.
   ///
-  /// 휴대폰 본인확인은 뺐다 — SMS 발송 업체가 전부 사업자 등록을 요구해서
-  /// 개인 프로젝트 단계에서는 막혀 있다. [sendPhoneVerificationCode]/
-  /// [verifyPhoneVerificationCode]는 나중에 업체를 구하면 다시 연결할 수
-  /// 있게 그대로 남겨뒀다.
+  /// [phoneVerificationToken]은 선택이다 — [verifyPhoneVerificationCode]로
+  /// 방금 인증에 성공한 경우에만 실어 보낸다(NCP SENS 발신번호가 아직 승인
+  /// 전이라 인증 자체를 건너뛰고 가입할 수도 있어서 필수로 만들지 않았다).
   Future<void> signup({
     required String username,
     required String password,
     required bool agreeTerms,
     required bool agreePrivacy,
     bool agreeMarketing = false,
+    String? phoneVerificationToken,
   }) async {
     await _exchangeAndSave('/api/auth/signup', {
       'username': username,
@@ -111,6 +111,7 @@ class AuthRepository {
       'agree_terms': agreeTerms,
       'agree_privacy': agreePrivacy,
       'agree_marketing': agreeMarketing,
+      'phone_verification_token': ?phoneVerificationToken,
     });
   }
 

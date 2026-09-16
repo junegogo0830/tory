@@ -3,7 +3,14 @@ import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.security import create_access_token, create_refresh_token, hash_password, verify_password
+from ..core.security import (
+    TokenError,
+    create_access_token,
+    create_refresh_token,
+    decode_phone_verification_token,
+    hash_password,
+    verify_password,
+)
 from ..db.models import User
 from ..models.auth import SignupRequest
 from .kakao_auth import KakaoAuthService
@@ -21,16 +28,26 @@ class AuthService:
         """자체 회원가입 — 약관 동의를 확인한 뒤 유저를 만들고 옛길 자체 JWT 쌍을
         발급한다.
 
-        휴대폰 본인확인은 뺐다 — SMS 발송 업체가 전부 사업자 등록을 요구해서
-        개인 프로젝트 단계에서는 막혀 있다(phone_number는 그래서 항상 None으로
-        남는다). 나중에 업체를 구하면 phone_verification_token 검증을 다시
-        추가하면 된다(services/phone_verification.py는 그대로 남아있다).
+        phone_verification_token은 선택이다 — NCP SENS 발신번호가 아직 승인
+        전이라 실제로는 인증번호가 서버 로그로만 남는 상태라, 필수로 만들면
+        지금 당장 아무도 가입을 못 하게 된다. 토큰이 왔으면(=실제로 인증에
+        성공했으면) 그 번호를 검증해서 phone_number를 채우고, 안 왔으면 그냥
+        None으로 둔다.
         """
         if not body.agree_terms or not body.agree_privacy:
             raise ValueError("필수 약관에 동의해주세요")
 
         if await db.scalar(select(User).where(User.username == body.username)) is not None:
             raise ValueError("이미 사용 중인 아이디예요")
+
+        phone_number: str | None = None
+        if body.phone_verification_token:
+            try:
+                phone_number = decode_phone_verification_token(body.phone_verification_token)
+            except TokenError:
+                raise ValueError("휴대폰 인증이 만료됐어요. 인증번호를 다시 받아주세요") from None
+            if await db.scalar(select(User).where(User.phone_number == phone_number)) is not None:
+                raise ValueError("이미 가입에 사용된 휴대폰 번호예요")
 
         now = datetime.datetime.now(datetime.timezone.utc)
         user = User(
@@ -39,6 +56,7 @@ class AuthService:
             # 닉네임 기본값은 아이디 — 가입 화면을 짧게 유지하고, 원하면 프로필
             # 편집 화면에서 바로 바꿀 수 있다(edit_profile_screen.dart).
             nickname=body.username,
+            phone_number=phone_number,
             terms_agreed_at=now,
             privacy_agreed_at=now,
             marketing_agreed=body.agree_marketing,

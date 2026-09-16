@@ -48,6 +48,7 @@ class AuthNotifier extends AsyncNotifier<bool> {
     required bool agreeTerms,
     required bool agreePrivacy,
     bool agreeMarketing = false,
+    String? phoneVerificationToken,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -57,6 +58,7 @@ class AuthNotifier extends AsyncNotifier<bool> {
             agreeTerms: agreeTerms,
             agreePrivacy: agreePrivacy,
             agreeMarketing: agreeMarketing,
+            phoneVerificationToken: phoneVerificationToken,
           );
       return true;
     });
