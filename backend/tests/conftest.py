@@ -2,6 +2,7 @@ import pytest
 
 from app.db import redis as redis_module
 from app.services.archive import ArchiveService
+from app.services.google_places import GooglePlacesService
 from app.services.kakao_local import KakaoLocalService
 from app.services.tourapi import TourApiService
 
@@ -51,6 +52,16 @@ def _no_live_tourapi_detail_calls(monkeypatch: pytest.MonkeyPatch) -> None:
         return None
 
     monkeypatch.setattr(TourApiService, "_get_tourapi_detail", _no_detail)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_google_places_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """유닛 테스트는 외부 구글 플레이스 네트워크 호출에도 의존하지 않는다."""
+
+    async def _no_lookup(self: GooglePlacesService, query: str) -> str | None:  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(GooglePlacesService, "_lookup", _no_lookup)
 
 
 @pytest.fixture(autouse=True)

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     naver_news_client_secret: str = ""
     kakao_map_js_key: str = ""
     kakao_rest_api_key: str = ""
+    google_maps_api_key: str = ""
 
     # SENS 발송 설정. 하나라도 비어 있으면 발송에 실패하며 인증을 우회할 수 없다.
     ncp_access_key: str = ""

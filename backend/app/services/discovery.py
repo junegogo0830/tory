@@ -5,6 +5,7 @@ import logging
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.text import extract_city
 from ..db.models import SavedLocation
 from ..db.redis import cache_get, cache_set
 from ..models.discovery import (
@@ -13,15 +14,16 @@ from ..models.discovery import (
     RestaurantItemResponse,
     TopAttractionResponse,
 )
-from ..models.location import PopularLocationResponse
+from ..models.location import LocationResponse, PopularLocationResponse
+from .google_places import GooglePlacesService
 from .kakao_local import KakaoLocalService
 from .tourapi import TourApiService
 
 logger = logging.getLogger(__name__)
 
-_TOP_ATTRACTIONS_CACHE_KEY = "discovery:top-attractions"
-_RESTAURANT_CATEGORIES_CACHE_KEY = "discovery:restaurant-categories"
-_KAKAO_RESTAURANTS_CACHE_KEY = "discovery:kakao-restaurants"
+_TOP_ATTRACTIONS_CACHE_KEY = "discovery:top-attractions:v2"
+_RESTAURANT_CATEGORIES_CACHE_KEY = "discovery:restaurant-categories:v2"
+_KAKAO_RESTAURANTS_CACHE_KEY = "discovery:kakao-restaurants:v2"
 _CACHE_TTL_SECONDS = 3600 * 24  # 하루에 한 번 재수집.
 
 # 카카오맵 기반 "전국" 맛집 카드용 — 카카오 카테고리 검색은 좌표 기반이라 진짜
@@ -49,7 +51,7 @@ _REGION_COORDS: dict[str, tuple[float, float]] = {
     "경상": (35.8714, 128.6014),  # 대구
     "강원": (37.8228, 128.1555),  # 춘천
 }
-_KAKAO_RESTAURANTS_BY_REGION_CACHE_KEY_PREFIX = "discovery:kakao-restaurants:region:"
+_KAKAO_RESTAURANTS_BY_REGION_CACHE_KEY_PREFIX = "discovery:kakao-restaurants:region:v2:"
 
 # 카카오 category_name은 "음식점 > 한식 > 육류,고기"처럼 계층 전체가 온다 —
 # 그 경로 안에 이 키워드가 하나라도 있으면 해당 큰 분류로 묶는다. 순서가
@@ -106,9 +108,11 @@ class DiscoveryService:
         self,
         tour_api_service: TourApiService | None = None,
         kakao_local_service: KakaoLocalService | None = None,
+        google_places_service: GooglePlacesService | None = None,
     ) -> None:
         self._tour_api_service = tour_api_service or TourApiService()
         self._kakao_local_service = kakao_local_service or KakaoLocalService()
+        self._google_places_service = google_places_service or GooglePlacesService()
 
     async def get_top_attractions(self) -> list[TopAttractionResponse]:
         cached = await cache_get(_TOP_ATTRACTIONS_CACHE_KEY)
@@ -123,25 +127,29 @@ class DiscoveryService:
         )
         return attractions
 
+    async def _photo_with_fallback(self, name: str, region: str, image_url: str | None) -> str | None:
+        """TourAPI 사진이 없으면 구글 플레이스로 마지막 보강 — 소규모 식당·일부
+        관광지는 TourAPI에 대표사진이 아예 없는 경우가 많다."""
+        if image_url is not None:
+            return image_url
+        return await self._google_places_service.find_photo(name, region)
+
     async def _build_top_attractions(self) -> list[TopAttractionResponse]:
         results = await asyncio.gather(
             *(self._tour_api_service.search_attractions(keyword, 1) for keyword in _TOP_ATTRACTION_KEYWORDS)
         )
 
-        attractions: list[TopAttractionResponse] = []
-        for rank, locations in enumerate(results, start=1):
-            if not locations:
-                continue
-            location = locations[0]
-            attractions.append(
-                TopAttractionResponse(
-                    rank=rank,
-                    id=location.id,
-                    name=location.name,
-                    region=location.region,
-                    image_url=location.image_url,
-                )
+        picked = [(rank, locations[0]) for rank, locations in enumerate(results, start=1) if locations]
+        photos = await asyncio.gather(
+            *(self._photo_with_fallback(location.name, location.region, location.image_url) for _, location in picked)
+        )
+
+        attractions = [
+            TopAttractionResponse(
+                rank=rank, id=location.id, name=location.name, region=location.region, image_url=photo,
             )
+            for (rank, location), photo in zip(picked, photos, strict=True)
+        ]
 
         if not attractions:
             logger.warning("Top attractions build returned no results (TOUR_API_KEY missing?)")
@@ -160,6 +168,19 @@ class DiscoveryService:
         )
         return categories
 
+    async def _to_restaurant_items(self, locations: list[LocationResponse]) -> list[RestaurantItemResponse]:
+        """TourAPI 대표사진이 없는 식당도 구글 플레이스로 보강해서 최대한 살린다 —
+        사진 없다고 그냥 빼면 후보 풀이 크게 줄어든다(식당류는 TourAPI 사진 커버율이
+        특히 낮다)."""
+        photos = await asyncio.gather(
+            *(self._photo_with_fallback(location.name, location.region, location.image_url) for location in locations)
+        )
+        return [
+            RestaurantItemResponse(id=location.id, name=location.name, region=location.region, image_url=photo)
+            for location, photo in zip(locations, photos, strict=True)
+            if photo is not None
+        ]
+
     async def _build_restaurant_categories(self) -> list[RestaurantCategoryResponse]:
         results = await asyncio.gather(
             *(
@@ -170,13 +191,7 @@ class DiscoveryService:
 
         categories: list[RestaurantCategoryResponse] = []
         for category, locations in zip(_RESTAURANT_CATEGORIES.keys(), results, strict=True):
-            items = [
-                RestaurantItemResponse(
-                    id=location.id, name=location.name, region=location.region, image_url=location.image_url
-                )
-                for location in locations
-                if location.image_url is not None
-            ]
+            items = await self._to_restaurant_items(locations)
             if not items:
                 continue
             categories.append(RestaurantCategoryResponse(category=category, headline=category, items=items))
@@ -192,19 +207,13 @@ class DiscoveryService:
         if keyword is None:
             return []
 
-        cache_key = f"discovery:restaurants:{category}"
+        cache_key = f"discovery:restaurants:v2:{category}"
         cached = await cache_get(cache_key)
         if cached is not None:
             return [RestaurantItemResponse.model_validate(item) for item in json.loads(cached)]
 
         locations = await self._tour_api_service.search_restaurants(keyword, _RESTAURANT_LIST_SIZE)
-        items = [
-            RestaurantItemResponse(
-                id=location.id, name=location.name, region=location.region, image_url=location.image_url
-            )
-            for location in locations
-            if location.image_url is not None
-        ]
+        items = await self._to_restaurant_items(locations)
         await cache_set(cache_key, json.dumps([item.model_dump() for item in items]), ex=_CACHE_TTL_SECONDS)
         return items
 
@@ -260,10 +269,16 @@ class DiscoveryService:
         return await self._to_responses([p for p in places if p.get("id")])
 
     async def _to_responses(self, places: list[dict]) -> list[KakaoRestaurantResponse]:
-        """카카오 검색 결과에 같은 이름의 TourAPI 등록 사진이 있으면 보강해 응답으로 바꾼다."""
-        image_urls = await asyncio.gather(
-            *(self._tour_api_service.find_image_url(place["name"]) for place in places)
-        )
+        """카카오 검색 결과에 같은 이름의 TourAPI 등록 사진이 있으면 보강하고,
+        없으면(식당류는 특히 자주 없다) 구글 플레이스로 한 번 더 보강해 응답으로 바꾼다."""
+        async def photo_for(place: dict) -> str | None:
+            image_url = await self._tour_api_service.find_image_url(place["name"])
+            if image_url is not None:
+                return image_url
+            region = extract_city(place.get("address", ""))
+            return await self._google_places_service.find_photo(place["name"], region)
+
+        image_urls = await asyncio.gather(*(photo_for(place) for place in places))
         return [
             KakaoRestaurantResponse(
                 id=place["id"],

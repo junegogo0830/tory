@@ -9,6 +9,7 @@ from ..core.config import settings
 from ..db.redis import cache_get, cache_set
 from ..models.course import CourseResponse, CourseStop
 from ..models.location import LocationResponse
+from .google_places import GooglePlacesService
 from .tourapi import TourApiService
 
 logger = logging.getLogger(__name__)
@@ -69,9 +70,11 @@ class CourseGeneratorService:
         self,
         tour_api_service: TourApiService | None = None,
         anthropic_client: Anthropic | None = None,
+        google_places_service: GooglePlacesService | None = None,
     ) -> None:
         self._tour_api_service = tour_api_service or TourApiService()
         self._client = anthropic_client
+        self._google_places_service = google_places_service or GooglePlacesService()
 
     def _get_client(self) -> Anthropic | None:
         if not settings.anthropic_api_key:
@@ -84,12 +87,12 @@ class CourseGeneratorService:
         if location.latitude is None or location.longitude is None:
             return None
 
-        cache_key = f"gencourse:v2:{location.id}:{season}"
+        cache_key = f"gencourse:v3:{location.id}:{season}"
         cached = await cache_get(cache_key)
         if cached is not None:
             course = CourseResponse.model_validate_json(cached) if cached != "null" else None
             if course:
-                await cache_set(f"course-detail:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await cache_set(f"course-detail:v2:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             return course
 
         course = await self._generate(location, season)
@@ -97,7 +100,7 @@ class CourseGeneratorService:
         await cache_set(cache_key, course.model_dump_json() if course else "null",
                         ex=_CACHE_TTL_SECONDS if course else 60)
         if course:
-            await cache_set(f"course-detail:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+            await cache_set(f"course-detail:v2:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
         return course
 
     async def _generate(self, location: LocationResponse, season: str) -> CourseResponse | None:
@@ -133,7 +136,26 @@ class CourseGeneratorService:
             return None
 
         text = next((block.text for block in response.content if block.type == "text"), "")
-        return self._parse_course(text, location=location, season=season, candidates=candidates)
+        course = self._parse_course(text, location=location, season=season, candidates=candidates)
+        return await self._fill_missing_photos(course, location.region) if course is not None else None
+
+    async def _photo_with_fallback(self, name: str, region: str, image_url: str | None) -> str | None:
+        if image_url is not None:
+            return image_url
+        return await self._google_places_service.find_photo(name, region)
+
+    async def _fill_missing_photos(self, course: CourseResponse, region: str) -> CourseResponse:
+        """Claude가 고른 정류지 중 TourAPI 사진이 없는 곳(식당류에 특히 흔하다)은
+        구글 플레이스로 보강한다."""
+        photos = await asyncio.gather(
+            *(self._photo_with_fallback(stop.name, region, stop.image_url) for stop in course.stops)
+        )
+        stops = [
+            stop if photo == stop.image_url else stop.model_copy(update={"image_url": photo})
+            for stop, photo in zip(course.stops, photos, strict=True)
+        ]
+        image_url = course.image_url or next((photo for photo in photos if photo), None)
+        return course.model_copy(update={"stops": stops, "image_url": image_url})
 
     def _parse_course(
         self, text: str, *, location: LocationResponse, season: str, candidates: list[dict]

@@ -6,6 +6,7 @@ from ..db.redis import cache_get, cache_set
 from ..models.course import CourseResponse, CourseStop
 from ..models.location import LocationResponse
 from .course_generator import CourseGeneratorService
+from .google_places import GooglePlacesService
 from .kakao_local import KakaoLocalService
 from .sentiment_client import SentimentClient
 from .tourapi import TourApiService
@@ -89,6 +90,7 @@ class RecommendationService:
         tour_api_service: TourApiService | None = None,
         course_generator_service: CourseGeneratorService | None = None,
         kakao_local_service: KakaoLocalService | None = None,
+        google_places_service: GooglePlacesService | None = None,
     ) -> None:
         self._sentiment_client = sentiment_client or SentimentClient()
         self._tour_api_service = tour_api_service or TourApiService()
@@ -96,6 +98,7 @@ class RecommendationService:
             tour_api_service=self._tour_api_service
         )
         self._kakao_local_service = kakao_local_service or KakaoLocalService()
+        self._google_places_service = google_places_service or GooglePlacesService()
 
     async def get_course_by_coords(self, latitude: float, longitude: float) -> CourseResponse | None:
         """"현재 위치" 코스. 등록된 장소가 아니어도 된다 — CourseGeneratorService는
@@ -141,7 +144,7 @@ class RecommendationService:
         return list(await asyncio.gather(*(self._enrich_course(c) for c in courses)))
 
     async def get_course_by_id(self, course_id: str) -> CourseResponse | None:
-        cached = await cache_get(f"course-detail:{course_id}")
+        cached = await cache_get(f"course-detail:v2:{course_id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
         if course_id.startswith("llm-"):
@@ -176,7 +179,7 @@ class RecommendationService:
           정류지만 채운다 (등록 관광지가 아닌 골목은 사진이 없을 수 있음).
         - 대표 사진: 원래 정류지 순서상 가장 앞선, 검색에 걸린 정류지의 사진을 쓴다.
         """
-        cached = await cache_get(f"enriched-course:v3:{course.id}")
+        cached = await cache_get(f"enriched-course:v4:{course.id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
         location = await self._tour_api_service.get_location_by_id(course.location_id) if course.location_id else None
@@ -185,11 +188,23 @@ class RecommendationService:
             queries = [stop.name, stop.name.replace(" ", "")]
             if region:
                 queries.extend((f"{region} {q}" for q in tuple(queries)))
+            best_match = None
             for query in queries:
                 info = await self._tour_api_service.find_place_info(query)
-                if info is not None and info.get("image_url"):
+                if info is None:
+                    continue
+                if best_match is None:
+                    best_match = info
+                if info.get("image_url"):
                     return info
-            return None
+            # TourAPI 대표사진으로 못 찾은 사진은 구글 플레이스로 마지막 보강 —
+            # 특히 소규모 식당은 TourAPI에 사진이 아예 없는 경우가 많다.
+            google_photo = await self._google_places_service.find_photo(stop.name, region)
+            if google_photo:
+                return {**best_match, "image_url": google_photo} if best_match else {
+                    "image_url": google_photo, "latitude": None, "longitude": None,
+                }
+            return best_match
         infos = await asyncio.gather(*(stop_info(stop) for stop in course.stops))
 
         enriched_stops = []
@@ -213,6 +228,6 @@ class RecommendationService:
                 image_url = await self._tour_api_service.get_city_image(location.region)
 
         result = course.model_copy(update={"stops": enriched_stops, "image_url": image_url})
-        await cache_set(f"enriched-course:v3:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
-        await cache_set(f"course-detail:{course.id}", result.model_dump_json(), ex=86400)
+        await cache_set(f"enriched-course:v4:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
+        await cache_set(f"course-detail:v2:{course.id}", result.model_dump_json(), ex=86400)
         return result
