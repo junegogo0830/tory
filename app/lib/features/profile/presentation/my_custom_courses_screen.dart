@@ -10,6 +10,7 @@ import '../../../shared/widgets/app_network_image.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 import '../../custom_course/data/custom_course_providers.dart';
+import '../../auth/data/auth_providers.dart';
 
 /// 프로필 "등록한 코스" — 내가 만든 코스 커스텀(코스 공유) 목록. "코스 커스텀에서
 /// 가져오기" 시트가 쓰는 것과 같은 목록(myCustomCoursesProvider)이라 그대로 재사용한다.
@@ -18,11 +19,25 @@ class MyCustomCoursesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!(ref.watch(authStateProvider).value ?? false)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('코스 커스텀')),
+        body: Center(child: TextButton(
+          onPressed: () => context.push('/login'),
+          child: const Text('내 코스를 보려면 로그인해주세요'),
+        )),
+      );
+    }
     final coursesAsync = ref.watch(myCustomCoursesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.paper,
       appBar: AppBar(title: const Text('등록한 코스')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/custom-courses/create'),
+        icon: const Icon(Icons.add),
+        label: const Text('코스 만들기'),
+      ),
       body: SafeArea(
         child: coursesAsync.when(
           data: (courses) {

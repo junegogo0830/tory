@@ -54,6 +54,28 @@ async def test_set_home_region_records_membership_once(db):
 
 
 @pytest.mark.asyncio
+async def test_leave_region_preserves_other_members_and_updates_home(db):
+    service = CommunityService()
+    user = User(kakao_id='leave-user', nickname='나')
+    other = User(kakao_id='leave-other', nickname='이웃')
+    db.add_all([user, other])
+    await db.commit()
+    await service.set_home_region(db, user, '서울 종로구')
+    await service.set_home_region(db, user, '경기 수원시')
+    await service.set_home_region(db, other, '경기 수원시')
+    await service.leave_region(db, user, '경기 수원시')
+    assert user.home_region == '서울 종로구'
+    assert await service.list_my_regions(db, user) == ['서울 종로구']
+    assert await service.list_my_regions(db, other) == ['경기 수원시']
+    await service.leave_region(db, user, '서울 종로구')
+    assert user.home_region is None
+    assert await service.list_my_regions(db, user) == []
+    await service.leave_region(db, user, '서울 종로구')
+    await service.set_home_region(db, user, '서울 종로구')
+    assert await service.list_my_regions(db, user) == ['서울 종로구']
+
+
+@pytest.mark.asyncio
 async def test_region_stats_counts_members_and_posts(db):
     service = CommunityService()
     a = User(kakao_id="stats-a", nickname="A")

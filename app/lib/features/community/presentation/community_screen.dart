@@ -159,12 +159,14 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                         label: '코스 커스텀',
                         subtitle: '나만의 코스를 만들어요',
                         badgeColor: AppColors.pastelMint,
-                        onTap: () => context.push('/custom-courses'),
+                        onTap: () => context.push('/my-custom-courses'),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
+                const _YetgilBoardCard(),
+                const SizedBox(height: 20),
                 authAsync.when(
                   data: _buildAuthDependentSection,
                   loading: () => const Padding(
@@ -383,12 +385,38 @@ class _RegionBoardsSection extends ConsumerWidget {
                 icon: const Icon(Icons.swap_horiz, size: 18),
                 label: const Text('동네 추가·전환'),
               ),
+              if (onSwitchRegion != null)
+                IconButton(
+                  tooltip: '이 동네 탈퇴',
+                  icon: const Icon(Icons.logout, size: 20),
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('동네 커뮤니티 탈퇴'),
+                        content: Text('$region 커뮤니티에서 탈퇴할까요? 작성한 게시글과 댓글은 유지돼요.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('취소')),
+                          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('탈퇴')),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true || !context.mounted) return;
+                    try {
+                      await ref.read(communityRepositoryProvider).leaveRegion(region);
+                      ref.invalidate(profileProvider);
+                      ref.invalidate(myRegionsProvider);
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('탈퇴하지 못했어요. 다시 시도해주세요')));
+                      }
+                    }
+                  },
+                ),
             ],
           ),
         ),
         const SizedBox(height: 14),
-        const _YetgilBoardCard(),
-        const SizedBox(height: 20),
         Text('게시판', style: AppTypography.sectionTitle),
         const SizedBox(height: 10),
         Container(

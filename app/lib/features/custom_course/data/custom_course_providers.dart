@@ -34,6 +34,7 @@ final customCourseCommentsProvider = FutureProvider.family<List<CustomCourseComm
 
 /// 로그인 필요 — "내 코스에서 가져오기" 시트가 쓴다.
 final myCustomCoursesProvider = FutureProvider<List<CustomCourseSummary>>((ref) {
+  if (!(ref.watch(authStateProvider).value ?? false)) return Future.value([]);
   final repo = ref.watch(customCourseRepositoryProvider);
   return repo.list(mine: true, limit: 50);
 });

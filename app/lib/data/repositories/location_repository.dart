@@ -62,6 +62,11 @@ class LocationRepository {
         .toList();
   }
 
+  Future<List<HometownLocation>> searchTourLocations(String query, {int limit = 10}) async {
+    final response = await _apiClient.dio.get('/api/location/tour-search', queryParameters: {'query': query, 'limit': limit});
+    return (response.data as List).map((json) => HometownLocation.fromJson(json as Map<String, dynamic>)).toList();
+  }
+
   /// 장소 주변 실제 음식점 목록 (좌표 없거나 매칭 없으면 빈 리스트).
   Future<List<NearbyPlace>> getNearbyRestaurants(String locationId) async {
     final response = await _apiClient.dio.get('/api/location/$locationId/nearby-restaurants');

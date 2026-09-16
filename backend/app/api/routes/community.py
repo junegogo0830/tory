@@ -50,6 +50,15 @@ async def my_regions(
     return await _community_service.list_my_regions(db, user)
 
 
+@router.delete("/my-regions", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_region(
+    region: str = Query(..., min_length=1),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    await _community_service.leave_region(db, user, region)
+
+
 @router.get("/region-stats", response_model=RegionStatsResponse)
 async def region_stats(region: str, db: AsyncSession = Depends(get_db_session)) -> RegionStatsResponse:
     """새 지역 가입 확인 화면에 "이미 N명이 함께하고 있어요"를 보여주기 위한 통계."""

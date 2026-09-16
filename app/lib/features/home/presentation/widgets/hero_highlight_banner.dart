@@ -1,13 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/data/hero_highlights.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../data/repositories/repository_providers.dart';
 
 /// 홈 화면 큰 히어로 배너 — 사진 자체에 이미 제목/설명이 다 들어있는 완성된
 /// 배너 이미지를 원본 비율 그대로(잘리거나 늘어나지 않게) 보여주고, 실제
@@ -64,35 +62,10 @@ class _HeroHighlightBannerState extends State<HeroHighlightBanner> {
   }
 }
 
-class _HeroSlide extends ConsumerStatefulWidget {
+class _HeroSlide extends StatelessWidget {
   const _HeroSlide({required this.highlight});
 
   final HeroHighlight highlight;
-
-  @override
-  ConsumerState<_HeroSlide> createState() => _HeroSlideState();
-}
-
-class _HeroSlideState extends ConsumerState<_HeroSlide> {
-  bool _resolving = false;
-
-  Future<void> _openDetail() async {
-    if (_resolving) return;
-    setState(() => _resolving = true);
-    try {
-      final location = await ref
-          .read(locationRepositoryProvider)
-          .resolveFromQuery(widget.highlight.placeQuery);
-      if (!mounted) return;
-      context.push('/compare/${location.id}');
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('장소 정보를 불러오지 못했어요')));
-      }
-    } finally {
-      if (mounted) setState(() => _resolving = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,13 +73,13 @@ class _HeroSlideState extends ConsumerState<_HeroSlide> {
       children: [
         // 원본 비율 그대로라 contain이든 cover든 결과는 같지만, 혹시 리사이즈
         // 과정에서 아주 조금 어긋나더라도 사진이 잘리지 않도록 contain을 쓴다.
-        Positioned.fill(child: Image.asset(widget.highlight.imageAsset, fit: BoxFit.contain)),
+        Positioned.fill(child: Image.asset(highlight.imageAsset, fit: BoxFit.contain)),
         Positioned(
           right: 10,
           bottom: 10,
           child: InkWell(
             borderRadius: BorderRadius.circular(AppRadius.pill),
-            onTap: _openDetail,
+            onTap: () => context.push('/compare/${highlight.locationId}'),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
@@ -114,13 +87,7 @@ class _HeroSlideState extends ConsumerState<_HeroSlide> {
                 borderRadius: BorderRadius.circular(AppRadius.pill),
                 boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1))],
               ),
-              child: _resolving
-                  ? SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink),
-                    )
-                  : Row(
+              child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(

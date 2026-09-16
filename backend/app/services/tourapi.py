@@ -374,6 +374,10 @@ class TourApiService:
         ]
 
     async def get_location_by_id(self, location_id: str) -> LocationResponse | None:
+        if location_id.startswith("hero-"):
+            from .hero_locations import get_hero_location
+            return get_hero_location(location_id)
+
         if location_id.startswith("tour-"):
             return await self._get_tourapi_detail(location_id)
 

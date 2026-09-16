@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import re
 import secrets
+import httpx
 
 from fastapi import HTTPException
 from sqlalchemy import desc, select
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.security import create_phone_verification_token
 from ..db.models import PhoneVerification
-from .sms import SmsService
+from .sms import SmsService, SmsSendError
 
 _CODE_TTL_MINUTES = 5
 _RESEND_COOLDOWN_SECONDS = 60
@@ -63,8 +64,12 @@ class PhoneVerificationService:
                 expires_at=now + datetime.timedelta(minutes=_CODE_TTL_MINUTES),
             )
         )
+        try:
+            await self._sms.send_sms(phone_number, f"[옛길] 인증번호 [{code}]를 {_CODE_TTL_MINUTES}분 이내에 입력해주세요.")
+        except (SmsSendError, httpx.HTTPError) as exc:
+            await db.rollback()
+            raise HTTPException(503, "인증 문자를 보내지 못했어요. 잠시 후 다시 시도해주세요") from exc
         await db.commit()
-        await self._sms.send_sms(phone_number, f"[옛길] 인증번호 [{code}]를 {_CODE_TTL_MINUTES}분 이내에 입력해주세요.")
 
     async def verify_code(self, db: AsyncSession, raw_phone_number: str, code: str) -> str:
         phone_number = normalize_phone_number(raw_phone_number)
@@ -72,11 +77,11 @@ class PhoneVerificationService:
 
         record = await db.scalar(
             select(PhoneVerification)
-            .where(PhoneVerification.phone_number == phone_number, PhoneVerification.verified_at.is_(None))
+            .where(PhoneVerification.phone_number == phone_number)
             .order_by(desc(PhoneVerification.created_at))
             .limit(1)
         )
-        if record is None or record.expires_at < now:
+        if record is None or record.verified_at is not None or record.expires_at < now:
             raise HTTPException(400, "인증번호가 만료되었어요. 다시 요청해주세요")
         if record.attempt_count >= _MAX_VERIFY_ATTEMPTS:
             raise HTTPException(429, "시도 횟수를 초과했어요. 인증번호를 다시 요청해주세요")

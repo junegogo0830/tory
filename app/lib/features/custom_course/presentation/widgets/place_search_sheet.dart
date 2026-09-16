@@ -64,7 +64,7 @@ class _PlaceSearchContentState extends ConsumerState<_PlaceSearchContent> {
     setState(() => _isSearching = true);
     try {
       if (_source == _Source.tour) {
-        final results = await ref.read(locationRepositoryProvider).searchLocations(query, limit: 10);
+        final results = await ref.read(locationRepositoryProvider).searchTourLocations(query, limit: 10);
         if (!mounted) return;
         setState(() => _tourResults = results);
       } else {

@@ -3,6 +3,7 @@
 class CourseStop {
   const CourseStop({
     required this.name,
+    this.source = '',
     this.latitude,
     this.longitude,
     this.category = '',
@@ -12,6 +13,7 @@ class CourseStop {
   });
 
   final String name;
+  final String source;
   final double? latitude;
   final double? longitude;
   final String category;
@@ -25,6 +27,7 @@ class CourseStop {
   factory CourseStop.fromJson(Map<String, dynamic> json) {
     return CourseStop(
       name: json['name'] as String,
+      source: json['source'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       category: json['category'] as String? ?? '',

@@ -81,7 +81,7 @@ class CourseGeneratorService:
         if location.latitude is None or location.longitude is None:
             return None
 
-        cache_key = f"gencourse:{location.id}:{season}"
+        cache_key = f"gencourse:v2:{location.id}:{season}"
         cached = await cache_get(cache_key)
         if cached is not None:
             course = CourseResponse.model_validate_json(cached) if cached != "null" else None
@@ -153,6 +153,7 @@ class CourseGeneratorService:
         stops = [
             CourseStop(
                 name=name,
+                source="tourapi",
                 latitude=candidates_by_name[name]["latitude"],
                 longitude=candidates_by_name[name]["longitude"],
                 category=candidates_by_name[name].get("category", ""),
@@ -165,6 +166,7 @@ class CourseGeneratorService:
         try:
             return CourseResponse(
                 id=f"llm-{location.id}-{season}",
+                source="tourapi",
                 location_id=location.id,
                 title=str(data["title"]),
                 description=str(data["description"]),

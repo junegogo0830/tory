@@ -25,6 +25,13 @@ async def search_locations(
     return await _tour_api_service.search_locations(query, limit=limit)
 
 
+@router.get("/tour-search", response_model=list[LocationResponse])
+async def search_tour_locations(
+    query: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=10)
+) -> list[LocationResponse]:
+    return await _tour_api_service.search_attractions(query, num_rows=limit)
+
+
 @router.get("", response_model=LocationResponse)
 async def resolve_location(query: str = Query(..., min_length=1)) -> LocationResponse:
     """자유 입력(주소/학교/아파트)에 대응하는 장소를 반환한다.

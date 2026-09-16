@@ -9,7 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.core.security import TokenError, decode_phone_verification_token, decode_token
+from app.core.security import TokenError, create_phone_verification_token, decode_phone_verification_token, decode_token
 from app.db.base import Base
 from app.db.models import PhoneVerification, User
 from app.models.auth import SignupRequest
@@ -129,6 +129,7 @@ def _signup_request(**overrides) -> SignupRequest:
         agree_terms=True,
         agree_privacy=True,
         agree_marketing=False,
+        phone_verification_token=create_phone_verification_token(_PHONE_NORMALIZED),
     )
     defaults.update(overrides)
     return SignupRequest(**defaults)
@@ -149,7 +150,7 @@ async def test_signup_success_then_login(db):
     access_token, refresh_token = await auth.signup(db, _signup_request(username="tester01"))
 
     user = (await db.execute(select(User).where(User.username == "tester01"))).scalar_one()
-    assert user.phone_number is None  # 휴대폰 인증 없이 가입 — 항상 비어있다.
+    assert user.phone_number == _PHONE_NORMALIZED
     assert user.nickname == "tester01"  # 기본 닉네임은 아이디
     assert user.terms_agreed_at is not None and user.privacy_agreed_at is not None
     assert user.marketing_agreed is False

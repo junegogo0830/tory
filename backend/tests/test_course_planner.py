@@ -21,6 +21,8 @@ async def test_weather_real_candidates_and_detail_cache():
     req=CourseGenerateRequest(region='테스트시',categories=['문화','산책'],duration_hours=3)
     result=await planner.generate(req)
     assert result.stops[0].name=='테스트박물관'
+    assert all(s.source == 'tourapi' for s in result.stops)
+    assert result.source == 'tourapi'
     assert '먼 공원' not in [s.name for s in result.stops]
     assert len({s.name for s in result.stops})==len(result.stops)
     assert result.weather_label=='비 · 20°C'

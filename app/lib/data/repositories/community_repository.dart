@@ -74,6 +74,10 @@ class CommunityRepository {
   }
 
   /// 로그인 필요. 내가 가입한 모든 동네(최근 가입 순) — 커뮤니티 탭 지역 토글에 쓴다.
+  Future<void> leaveRegion(String region) async {
+    await _apiClient.dio.delete('/api/community/my-regions', queryParameters: {'region': region});
+  }
+
   Future<List<String>> myRegions() async {
     final response = await _apiClient.dio.get('/api/community/my-regions');
     return (response.data as List).cast<String>();
@@ -108,7 +112,7 @@ class CommunityRepository {
     final response = await _apiClient.dio.get(
       '/api/community/posts',
       queryParameters: {
-        if (region != null) 'region': region,
+        'region': ?region,
         'board': board,
         'limit': limit,
         'offset': offset,

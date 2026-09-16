@@ -15,12 +15,8 @@ const _kMinPasswordLength = 8;
 
 enum _PhoneStep { idle, codeSent, verified }
 
-/// 자체 회원가입 화면 — 아이디/비밀번호, 휴대폰 인증(선택), 약관 동의를 한
+/// 자체 회원가입 화면 — 아이디/비밀번호, 휴대폰 인증(필수), 약관 동의를 한
 /// 화면에서 순서대로 진행한다. 성공하면 로그인 상태로 홈에 진입한다.
-///
-/// 휴대폰 인증은 선택이다 — NCP SENS 발신번호가 아직 승인 전이라 지금은
-/// 인증번호가 실제 문자 대신 서버 로그로만 남는다. 그래서 인증을 건너뛰어도
-/// 가입은 되게 해뒀다 — 발신번호가 승인되면 이 화면 수정 없이 바로 실동작한다.
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
@@ -94,7 +90,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   Future<void> _verifyCode() async {
-    if (_codeController.text.trim().isEmpty || _verifyingCode) return;
+    if (_codeController.text.trim().length != 6 || _verifyingCode || _sendingCode) return;
     setState(() {
       _verifyingCode = true;
       _phoneError = null;
@@ -156,6 +152,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       _passwordController.text == _confirmController.text &&
       _agreeTerms &&
       _agreePrivacy &&
+      _phoneStep == _PhoneStep.verified &&
+      _phoneVerificationToken != null &&
       !_submitting;
 
   Future<void> _submit() async {
@@ -255,7 +253,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   children: [
                     Text('휴대폰 인증', style: AppTypography.headline),
                     const SizedBox(width: 6),
-                    Text('(선택)', style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
+                    Text('(필수)', style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -384,7 +382,7 @@ class _PhoneVerificationSection extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: phoneController,
-                enabled: !phoneStepBusy,
+                enabled: !phoneStepBusy && !sendingCode && !verifyingCode,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(hintText: '01012345678'),
               ),
@@ -393,7 +391,7 @@ class _PhoneVerificationSection extends StatelessWidget {
             SizedBox(
               height: 48,
               child: OutlinedButton(
-                onPressed: phoneStepBusy || !phoneFormatValid || sendingCode ? null : onSendCode,
+                onPressed: !phoneFormatValid || sendingCode || verifyingCode ? null : onSendCode,
                 child: sendingCode
                     ? const SizedBox(
                         width: 16,
@@ -406,6 +404,7 @@ class _PhoneVerificationSection extends StatelessWidget {
           ],
         ),
         if (phoneStepBusy) ...[
+          TextButton(onPressed: sendingCode || verifyingCode ? null : onReset, child: const Text('번호 변경')),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -422,7 +421,7 @@ class _PhoneVerificationSection extends StatelessWidget {
               SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: verifyingCode ? null : onVerifyCode,
+                  onPressed: verifyingCode || sendingCode ? null : onVerifyCode,
                   child: verifyingCode
                       ? const SizedBox(
                           width: 16,
@@ -441,7 +440,7 @@ class _PhoneVerificationSection extends StatelessWidget {
         ],
         const SizedBox(height: 4),
         Text(
-          '인증하지 않아도 가입할 수 있어요',
+          '가입하려면 휴대폰 인증을 완료해주세요. 인증번호는 5분간 유효하며 재전송은 60초 후 가능해요.',
           style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
         ),
       ],

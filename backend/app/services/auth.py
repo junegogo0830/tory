@@ -34,12 +34,8 @@ class AuthService:
         """자체 회원가입 — 약관 동의를 확인한 뒤 유저를 만들고 옛길 자체 JWT 쌍을
         발급한다.
 
-        휴대폰 인증 필수 여부는 하드코딩하지 않는다 — NCP SENS 발신번호가
-        등록·승인돼 실제로 문자를 보낼 수 있는 상태(`PhoneVerificationService
-        .is_live`)일 때만 필수로 요구한다. 그 전까지 필수로 만들면 아무도
-        인증번호를 받을 수 없어(로그로만 남으므로) 가입 자체가 완전히
-        막히기 때문이다 — 발신번호가 승인되는 순간 이 조건이 자동으로
-        참이 되어 코드 변경 없이 필수 인증으로 전환된다.
+        휴대폰 인증은 SMS 설정 여부와 관계없이 필수다.
+        발송 설정이 없거나 발송에 실패하면 인증 없이 가입할 수 없다.
         """
         if not body.agree_terms or not body.agree_privacy:
             raise ValueError("필수 약관에 동의해주세요")
@@ -47,7 +43,7 @@ class AuthService:
         if await db.scalar(select(User).where(User.username == body.username)) is not None:
             raise ValueError("이미 사용 중인 아이디예요")
 
-        if self._phone_verification_service.is_live and not body.phone_verification_token:
+        if not body.phone_verification_token:
             raise ValueError("휴대폰 인증을 완료해주세요")
 
         phone_number: str | None = None

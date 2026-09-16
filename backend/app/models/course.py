@@ -16,6 +16,7 @@ class CourseGenerateRequest(BaseModel):
 
 class CourseStop(BaseModel):
     name: str
+    source: str = ''
     # 실제 등록된 장소와 매칭됐을 때만 채워진다 — 있으면 프론트에서 카카오맵
     # 길찾기 딥링크를 만들 수 있다. 큐레이션 코스의 일부 정류지(가상의 옛길
     # 골목 등)는 등록된 장소가 아니라 None으로 남을 수 있다.

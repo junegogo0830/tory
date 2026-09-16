@@ -3,9 +3,11 @@ import '../../../data/models/community_post.dart';
 import '../../../data/models/neighbor.dart';
 import '../../../data/models/region_stats.dart';
 import '../../../data/repositories/repository_providers.dart';
+import '../../auth/data/auth_providers.dart';
 
 /// 내가 가입한 모든 동네(최근 가입 순) — 커뮤니티 탭 지역 토글에 쓴다.
 final myRegionsProvider = FutureProvider<List<String>>((ref) {
+  if (!(ref.watch(authStateProvider).value ?? false)) return Future.value([]);
   final repo = ref.watch(communityRepositoryProvider);
   return repo.myRegions();
 });

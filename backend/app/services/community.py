@@ -74,6 +74,19 @@ class CommunityService:
         )
         await db.commit()
 
+    async def leave_region(self, db: AsyncSession, user: User, region: str) -> None:
+        await db.execute(delete(RegionMembership).where(
+            RegionMembership.user_id == user.id, RegionMembership.region == region,
+        ))
+        if user.home_region == region:
+            user.home_region = await db.scalar(
+                select(RegionMembership.region)
+                .where(RegionMembership.user_id == user.id)
+                .order_by(desc(RegionMembership.joined_at), RegionMembership.region)
+                .limit(1)
+            )
+        await db.commit()
+
     async def list_my_regions(self, db: AsyncSession, user: User) -> list[str]:
         """이 사용자가 가입한 모든 동네 — 최근 가입한 순. 커뮤니티 탭의 지역
         토글이 그대로 보여준다."""

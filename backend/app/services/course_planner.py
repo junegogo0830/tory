@@ -34,7 +34,7 @@ class CoursePlanner:
             raise HTTPException(422, "지역을 선택해주세요")
         # Short-lived plan cache includes every preference and the current weather time bucket.
         bucket = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d%H")
-        digest = hashlib.sha256((request.model_dump_json() + bucket).encode()).hexdigest()[:24]
+        digest = hashlib.sha256(("v2:" + request.model_dump_json() + bucket).encode()).hexdigest()[:24]
         key = f"course-detail:plan-{digest}"
         cached = await cache_get(key)
         if cached:
@@ -43,10 +43,11 @@ class CoursePlanner:
         if not coords:
             raise HTTPException(404, "지역 위치를 찾지 못했어요. 시·군·구를 다시 선택해주세요")
         async def nearby():
-            return await self.tour.find_nearby_places(latitude=coords[0], longitude=coords[1], radius_m=5000, num_rows=60)
+            places = await self.tour.find_nearby_places(latitude=coords[0], longitude=coords[1], radius_m=5000, num_rows=60)
+            return [dict(p, source='tourapi') for p in places]
         async def topic(category):
             found = await self.kakao.search_places(f"{request.region} {KEYWORDS[category]}", limit=10)
-            return [dict(title=p['name'], addr=p['address'], latitude=p['latitude'], longitude=p['longitude'], category=category) for p in found]
+            return [dict(title=p['name'], addr=p['address'], latitude=p['latitude'], longitude=p['longitude'], category=category, source='kakao') for p in found]
         results = await asyncio.gather(nearby(), self.weather.get_current_weather(*coords), *(topic(c) for c in request.categories))
         candidates, weather, *topics = results
         # Topic matches are stronger than the broad TourAPI type labels.
@@ -92,7 +93,7 @@ class CoursePlanner:
             if chosen is None:
                 break
             p, leg, stay = chosen
-            selected.append(CourseStop(name=p['title'], latitude=p['latitude'], longitude=p['longitude'], category=p.get('category',''), address=p.get('addr',''), stay_minutes=stay))
+            selected.append(CourseStop(name=p['title'], latitude=p['latitude'], longitude=p['longitude'], category=p.get('category',''), address=p.get('addr',''), stay_minutes=stay, source=p['source']))
             total_distance += leg
             used_minutes += leg / speed * 60 + stay
             current = (p['latitude'], p['longitude'])
@@ -110,5 +111,6 @@ class CoursePlanner:
         if request.gender != '선택 안 함':
             notes.append("성별로 장소를 제한하지 않고 선택한 관심사와 여행 속도를 우선 반영했어요.")
         course = CourseResponse(id=f"plan-{digest}", title=f"{request.region} {' · '.join(request.categories)}", description=f"{weather_label}, {pace} 둘러보는 {len(selected)}곳의 여행. {request.age_group} 여행자의 {request.duration_hours}시간 일정에 맞췄어요." if request.age_group != '선택 안 함' else f"{weather_label}, {pace} 둘러보는 {len(selected)}곳의 여행. {request.duration_hours}시간 일정에 맞췄어요.", sentiment_score=0, stops=selected, duration_label=f"약 {math.ceil(used_minutes / 10) * 10}분", category=request.categories[0], region=request.region, weather_label=weather_label, estimated_distance_km=round(total_distance,1), notes=notes, source='tourapi+kakao', image_url=next((p.get('image_url') for p in candidates if p['title'] in {s.name for s in selected} and p.get('image_url')), None))
+        course.source = '+'.join(sorted({stop.source for stop in selected}))
         await cache_set(key, course.model_dump_json(), ex=7*86400)
         return course

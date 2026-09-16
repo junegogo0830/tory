@@ -227,6 +227,11 @@ class _StopTimelineRow extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (stop.source == 'tourapi' || stop.source == 'kakao')
+                      Text(
+                        stop.source == 'tourapi' ? '한국관광공사 관광정보' : '카카오맵 장소',
+                        style: AppTypography.caption,
+                      ),
                     if (stop.category.isNotEmpty ||
                         stop.address.isNotEmpty) ...[
                       const SizedBox(height: 2),

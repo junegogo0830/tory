@@ -18,10 +18,7 @@ class SmsSendError(Exception):
 class SmsService:
     """네이버클라우드 SENS로 문자를 발송한다.
 
-    NCP_ACCESS_KEY/NCP_SECRET_KEY/NCP_SENS_SERVICE_ID/NCP_SENS_SENDER_NUMBER 중
-    하나라도 비어 있으면(키 발급 전 로컬 개발 등) 실제로 보내지 않고 로그로만
-    남긴다 — 회원가입 전체 흐름(인증번호 발송→입력→검증)을 실제 SMS 계정 없이도
-    막힘 없이 개발/테스트할 수 있게 하려는 의도적인 폴백이다.
+    설정이 없으면 발송 실패로 처리한다. 전화번호와 인증번호는 로그에 남기지 않는다.
     """
 
     _BASE_URL = "https://sens.apigw.ntruss.com"
@@ -37,9 +34,7 @@ class SmsService:
 
     @property
     def is_live(self) -> bool:
-        """실제로 문자를 보낼 수 있는 상태인지 — 회원가입에서 휴대폰 인증을
-        필수로 요구할지 말지가 이 값 하나로 자동으로 결정된다(발신번호가
-        승인돼 이 값이 True가 되는 순간, 코드 변경 없이 필수 인증이 켜진다)."""
+        """발송 설정 존재 여부. 발신번호 승인이나 실제 수신을 보장하지 않는다."""
         return self._configured()
 
     def _make_signature(self, method: str, url: str, timestamp: str) -> str:
@@ -49,8 +44,7 @@ class SmsService:
 
     async def send_sms(self, to: str, content: str) -> None:
         if not self._configured():
-            logger.warning("NCP_SENS not configured — logging SMS instead of sending: to=%s content=%s", to, content)
-            return
+            raise SmsSendError("SMS service is not configured")
 
         url = self._MESSAGES_PATH_TEMPLATE.format(service_id=settings.ncp_sens_service_id)
         timestamp = str(int(time.time() * 1000))

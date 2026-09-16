@@ -28,9 +28,7 @@ class Settings(BaseSettings):
     kakao_map_js_key: str = ""
     kakao_rest_api_key: str = ""
 
-    # 네이버클라우드 SENS(문자 발송) — 셋 다 비어 있으면 실제로 문자를 보내지 않고
-    # 인증번호를 로그로만 남긴다(services/sms.py) — 로컬 개발/키 발급 전에도
-    # 회원가입 전체 흐름을 막힘 없이 테스트할 수 있게 하는 의도적인 폴백이다.
+    # SENS 발송 설정. 하나라도 비어 있으면 발송에 실패하며 인증을 우회할 수 없다.
     ncp_access_key: str = ""
     ncp_secret_key: str = ""
     ncp_sens_service_id: str = ""
