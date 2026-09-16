@@ -100,13 +100,26 @@ class TourApiService:
         serviceKey는 URL에 직접(raw) 붙이고 나머지만 urlencode한다 — 참고로
         완성된 쿼리스트링이 있는 URL에 httpx `params=`를 같이 넘기면 병합이
         아니라 그 쿼리스트링을 통째로 덮어써버리는 것도 확인했다.
+
+        공공데이터포털 서버가 순간적으로 연결을 끊는 경우가 있어(여러 요청이
+        겹칠 때 특히), 실패 시 짧게 대기 후 한 번 더 시도한다 — 완전히 죽은
+        키/엔드포인트가 아니라 일시적 실패인 경우가 대부분이라 재시도로 대부분
+        복구된다.
         """
         query = urlencode(params)
         url = f"{self._base_url}/{path}?serviceKey={settings.tour_api_key}&{query}"
-        async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.json()
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(timeout=8) as client:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    return response.json()
+            except httpx.HTTPError as e:
+                last_error = e
+                if attempt == 0:
+                    await asyncio.sleep(0.5)
+        raise last_error
 
     async def resolve_location(self, query: str) -> LocationResponse | None:
         """자유 입력(주소/학교/아파트 텍스트)에 대응하는 장소를 찾는다.
