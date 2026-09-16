@@ -182,10 +182,14 @@ class RecommendationService:
         location = await self._tour_api_service.get_location_by_id(course.location_id) if course.location_id else None
         region = location.region if location else course.region
         async def stop_info(stop):
-            info = await self._tour_api_service.find_place_info(stop.name)
-            if info is None and region:
-                info = await self._tour_api_service.find_place_info(f"{region} {stop.name}")
-            return info
+            queries = [stop.name, stop.name.replace(" ", "")]
+            if region:
+                queries.extend((f"{region} {q}" for q in tuple(queries)))
+            for query in queries:
+                info = await self._tour_api_service.find_place_info(query)
+                if info is not None and info.get("image_url"):
+                    return info
+            return None
         infos = await asyncio.gather(*(stop_info(stop) for stop in course.stops))
 
         enriched_stops = []
