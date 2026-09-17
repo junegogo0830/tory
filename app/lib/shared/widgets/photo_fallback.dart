@@ -17,6 +17,11 @@ class PhotoFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // label이 없으면 기존과 완전히 같은 구조(Center에 아이콘 하나)를 유지한다 —
+    // Column으로 감싸면 36~40px짜리 작은 썸네일(course_roadmap.dart 등)에서
+    // 아이콘 크기(40)가 그 박스보다 커서 RenderFlex 오버플로 에러가 난다.
+    // label은 여백이 넉넉한 큰 카드에서만 쓰므로 그때만 Column으로 감싼다.
+    final iconWidget = Icon(icon, color: AppColors.inkTertiary, size: 40);
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -26,16 +31,16 @@ class PhotoFallback extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: AppColors.inkTertiary, size: 40),
-            if (label != null) ...[
-              const SizedBox(height: 6),
-              Text(label!, style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
-            ],
-          ],
-        ),
+        child: label == null
+            ? iconWidget
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  iconWidget,
+                  const SizedBox(height: 6),
+                  Text(label!, style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
+                ],
+              ),
       ),
     );
   }

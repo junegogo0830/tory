@@ -10,6 +10,7 @@ import 'package:yetgil_app/data/models/saved_course.dart';
 import 'package:yetgil_app/data/repositories/community_repository.dart';
 import 'package:yetgil_app/data/repositories/memory_repository.dart';
 import 'package:yetgil_app/data/repositories/repository_providers.dart';
+import 'package:yetgil_app/features/auth/data/auth_providers.dart';
 import 'package:yetgil_app/features/custom_course/data/custom_course_providers.dart';
 import 'package:yetgil_app/features/profile/data/profile_providers.dart';
 import 'package:yetgil_app/features/profile/presentation/edit_profile_screen.dart';
@@ -44,6 +45,11 @@ class _EmptyMemoryRepository extends MemoryRepository {
   _EmptyMemoryRepository() : super(ApiClient());
   @override
   Future<List<MemoryAttribute>> myAttributes() async => [];
+}
+
+class _LoggedIn extends AuthNotifier {
+  @override
+  Future<bool> build() async => true;
 }
 
 void main() {
@@ -106,6 +112,7 @@ void main() {
       ProviderScope(
         overrides: [
           myCustomCoursesProvider.overrideWith((ref) async => <CustomCourseSummary>[]),
+          authStateProvider.overrideWith(_LoggedIn.new),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const MyCustomCoursesScreen()),
       ),
