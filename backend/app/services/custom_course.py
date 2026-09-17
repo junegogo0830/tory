@@ -61,6 +61,15 @@ class CustomCourseService:
     async def _backfill_photos(self, places: list[CustomCoursePlaceInput]) -> list[CustomCoursePlaceInput]:
         return list(await asyncio.gather(*(self._backfill_photo(p) for p in places)))
 
+    async def _thumbnail_with_fallback(self, places: list[dict]) -> str | None:
+        """목록 카드용 — 사진 있는 장소가 하나도 없으면 첫 장소만 보강해본다
+        (목록에 뜨는 코스마다 모든 장소를 다 조회하면 비용이 커진다)."""
+        existing = next((p.get("image_url") for p in places if p.get("image_url")), None)
+        if existing or not places:
+            return existing
+        resolved = await self._backfill_photo(CustomCoursePlaceInput.model_validate(places[0]))
+        return resolved.image_url
+
     async def _course(self, db: AsyncSession, course_id: int) -> CustomCourse:
         course = await db.get(CustomCourse, course_id)
         if course is None:
@@ -81,8 +90,15 @@ class CustomCourseService:
             select(func.count()).select_from(CustomCourseComment).where(CustomCourseComment.course_id == course_id)
         )
 
-    def _to_response(self, course: CustomCourse, *, author_nickname: str) -> CustomCourseResponse:
-        places = [CustomCoursePlaceResponse.model_validate(p) for p in json.loads(course.places_json)]
+    async def _to_response(self, course: CustomCourse, *, author_nickname: str) -> CustomCourseResponse:
+        # 생성/수정 시점에 이미 한 번 채워두지만(_backfill_photos), 그 시점에
+        # TourAPI/구글이 실패했거나 이 기능이 배포되기 전에 만들어진 예전
+        # 코스는 image_url이 계속 비어있을 수 있다 — 조회할 때마다 다시
+        # 채워본다(place.image_url이 있으면 _backfill_photo가 바로 반환하므로
+        # 이미 채워진 코스는 추가 API 호출 없이 그대로 나간다).
+        raw_places = [CustomCoursePlaceInput.model_validate(p) for p in json.loads(course.places_json)]
+        resolved_places = await self._backfill_photos(raw_places)
+        places = [CustomCoursePlaceResponse.model_validate(p.model_dump()) for p in resolved_places]
         return CustomCourseResponse(
             id=course.id,
             author_id=course.user_id,
@@ -157,7 +173,7 @@ class CustomCourseService:
                     title=course.title,
                     category=course.category,
                     place_count=len(places),
-                    thumbnail_url=next((p.get("image_url") for p in places if p.get("image_url")), None),
+                    thumbnail_url=await self._thumbnail_with_fallback(places),
                     score=likes - dislikes,
                     like_count=likes,
                     dislike_count=dislikes,
@@ -194,7 +210,7 @@ class CustomCourseService:
                     title=course.title,
                     category=course.category,
                     place_count=len(places),
-                    thumbnail_url=next((p.get("image_url") for p in places if p.get("image_url")), None),
+                    thumbnail_url=await self._thumbnail_with_fallback(places),
                     score=likes - dislikes,
                     like_count=likes,
                     dislike_count=dislikes,
@@ -218,7 +234,7 @@ class CustomCourseService:
                 )
             )
             my_vote = vote or 0
-        response = self._to_response(course, author_nickname=author.nickname if author else "탈퇴한 사용자")
+        response = await self._to_response(course, author_nickname=author.nickname if author else "탈퇴한 사용자")
         return response.model_copy(
             update={
                 "like_count": likes,

@@ -113,6 +113,8 @@ class _CustomCourseDetailScreenState extends ConsumerState<CustomCourseDetailScr
     if (confirmed != true || !mounted) return;
     await _act(() async {
       await ref.read(customCourseRepositoryProvider).delete(widget.courseId);
+      ref.invalidate(customCourseListProvider);
+      ref.invalidate(myCustomCoursesProvider);
       if (mounted) context.pop();
     });
   }

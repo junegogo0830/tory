@@ -25,6 +25,17 @@ class _FriendFinderFlowScreenState extends ConsumerState<FriendFinderFlowScreen>
   final List<DraftMemoryAttribute> _conditions = [];
   List<MemoryMatch>? _results;
   bool _searching = false;
+  bool _visibilityBusy = false;
+
+  Future<void> _setVisible(bool value) async {
+    setState(() => _visibilityBusy = true);
+    try {
+      await ref.read(profileRepositoryProvider).updateInfo(friendFinderEnabled: value);
+      ref.invalidate(profileProvider);
+    } finally {
+      if (mounted) setState(() => _visibilityBusy = false);
+    }
+  }
 
   Future<void> _addCondition() async {
     final draft = await showAddMemoryAttributeSheet(context);
@@ -65,25 +76,7 @@ class _FriendFinderFlowScreenState extends ConsumerState<FriendFinderFlowScreen>
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(profileProvider);
-    if (profile.hasValue && !profile.value!.friendFinderEnabled) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('친구 찾기')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.person_search_outlined, size: 48),
-              const SizedBox(height: 12),
-              const Text('친구찾기 기능이 꺼져 있어요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              const Text('프로필 설정에서 친구찾기를 켜면 친구찾기 커뮤니티에 참여할 수 있어요.', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: () => context.push('/profile/info'), child: const Text('프로필에서 켜기')),
-            ]),
-          ),
-        ),
-      );
-    }
+    final isVisible = profile.value?.friendFinderEnabled ?? true;
     final results = _results;
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -92,6 +85,17 @@ class _FriendFinderFlowScreenState extends ConsumerState<FriendFinderFlowScreen>
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
+            Material(
+              color: AppColors.fieldBg,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              child: SwitchListTile(
+                title: const Text('다른 유저에게 정보를 보여줄까요?'),
+                subtitle: const Text('끄면 다른 사람의 검색 결과에 내가 나오지 않아요. 나는 계속 찾아볼 수 있어요.'),
+                value: isVisible,
+                onChanged: _visibilityBusy ? null : _setVisible,
+              ),
+            ),
+            const SizedBox(height: 18),
             Text('같은 추억을 가진 사람 찾기', style: AppTypography.title),
             const SizedBox(height: 6),
             Text(

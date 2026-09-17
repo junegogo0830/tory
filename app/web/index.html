@@ -34,27 +34,22 @@
 
   <!--
     Flutter가 첫 프레임을 그리기 전까지(특히 초회 로드 시 몇 초) 빈 흰 화면이
-    보이던 걸 막는 정적 로딩 화면 — 앱 배경색(#F2EFEA) 위에 실제 로고
-    이미지(assets/logo/logo_icon.png, logo_wordmark.png)를 미리 보여준다.
-    Flutter가 asset을 "assets/<원본 경로>"로 번들링하므로 여기서도 같은
-    경로로 참조한다. #app-loading은 Flutter가 뜨면 그 위로 덮인다.
+    보이던 걸 막는 정적 로딩 화면 — 전체 화면 스플래시 이미지(assets/logo/
+    splash.png)를 미리 보여준다. 네이티브 스플래시(main.dart의
+    _StartupSplash)와 같은 이미지를 써서 웹/앱이 같은 스플래시로 보이게
+    한다. Flutter가 asset을 "assets/<원본 경로>"로 번들링하므로 여기서도
+    같은 경로로 참조한다. #app-loading은 Flutter가 뜨면 그 위로 덮인다.
   -->
   <style>
     html, body { background: #F2EFEA; }
     #app-loading {
-      position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 14px;
-      background: #F2EFEA;
+      position: fixed; inset: 0;
+      background: #F2EFEA url('assets/assets/logo/splash.png') center center / cover no-repeat;
     }
-    #app-loading .badge { width: 72px; height: 72px; border-radius: 17px; }
-    #app-loading .wordmark { height: 26px; }
   </style>
 </head>
 <body>
-  <div id="app-loading">
-    <img class="badge" src="assets/assets/logo/logo_icon.png" alt="">
-    <img class="wordmark" src="assets/assets/logo/logo_wordmark.png" alt="옛길">
-  </div>
+  <div id="app-loading"></div>
 
   <!--
     You can customize the "flutter_bootstrap.js" script.

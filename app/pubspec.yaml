@@ -76,6 +76,7 @@ flutter:
   assets:
     # 실제 앱에서 쓰는 이미지만 개별로 등록한다 — assets/logo/ 폴더 전체를
     # 등록하면 README까지 번들에 딸려 들어간다.
+    - assets/logo/splash.png
     - assets/logo/logo.png
     - assets/logo/logo_icon.png
     - assets/logo/logo_wordmark.png

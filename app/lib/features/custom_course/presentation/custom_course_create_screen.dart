@@ -222,6 +222,7 @@ class _CustomCourseCreateScreenState extends ConsumerState<CustomCourseCreateScr
           isPublic: _isPublic,
         );
         ref.invalidate(customCourseListProvider);
+        ref.invalidate(myCustomCoursesProvider);
         ref.invalidate(customCourseDetailProvider(course.id));
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('코스를 수정했어요')));
@@ -235,6 +236,7 @@ class _CustomCourseCreateScreenState extends ConsumerState<CustomCourseCreateScr
           isPublic: _isPublic,
         );
         ref.invalidate(customCourseListProvider);
+        ref.invalidate(myCustomCoursesProvider);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('코스가 등록됐어요')));
         context.pushReplacement('/custom-courses/${course.id}');
@@ -320,6 +322,11 @@ class _CustomCourseCreateScreenState extends ConsumerState<CustomCourseCreateScr
                     Text('나의 로드맵', style: AppTypography.headline),
                     Text('${_places.length}/$_maxPlaces', style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
                   ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '사진을 탭해서 등록해보세요. 등록하지 않으면 자동으로 채워져요.',
+                  style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
                 ),
                 const SizedBox(height: 10),
                 CourseRoadmap(

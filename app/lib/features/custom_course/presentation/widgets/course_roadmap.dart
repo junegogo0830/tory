@@ -192,30 +192,30 @@ class _PlaceCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: item.imageUrl == null
-                        ? const PhotoFallback()
-                        : AppNetworkImage(
-                            imageUrl: item.imageUrl!,
-                            fit: BoxFit.cover,
-                            placeholder: (_, _) => const PhotoFallback(),
-                            errorWidget: (_, _, _) => const PhotoFallback(),
-                          ),
+            GestureDetector(
+              onTap: item.onEditPhoto,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: item.imageUrl == null
+                          ? const PhotoFallback()
+                          : AppNetworkImage(
+                              imageUrl: item.imageUrl!,
+                              fit: BoxFit.cover,
+                              placeholder: (_, _) => const PhotoFallback(),
+                              errorWidget: (_, _, _) => const PhotoFallback(),
+                            ),
+                    ),
                   ),
-                ),
-                if (item.onEditPhoto != null)
-                  Positioned(
-                    right: -4,
-                    bottom: -4,
-                    child: GestureDetector(
-                      onTap: item.onEditPhoto,
+                  if (item.onEditPhoto != null)
+                    Positioned(
+                      right: -4,
+                      bottom: -4,
                       child: Container(
                         width: 18,
                         height: 18,
@@ -228,8 +228,8 @@ class _PlaceCard extends StatelessWidget {
                         child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(

@@ -5,6 +5,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/yetgil_mark.dart';
+import '../../../auth/data/auth_providers.dart';
+import '../../../notifications/data/notification_providers.dart';
 import 'search_filter_sheet.dart';
 import 'top_attractions_ticker.dart';
 
@@ -60,6 +62,8 @@ class WeatherTopBanner extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const _NotificationButton(),
+              const SizedBox(width: 8),
               const _ProfileButton(),
             ],
           ),
@@ -138,6 +142,57 @@ class _SearchField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.field),
           borderSide: BorderSide(color: AppColors.border),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationButton extends ConsumerWidget {
+  const _NotificationButton();
+
+  void _open(BuildContext context, WidgetRef ref) {
+    if (!(ref.read(authStateProvider).value ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('알림을 보려면 먼저 로그인해주세요')),
+      );
+      context.go('/profile');
+      return;
+    }
+    context.push('/notifications');
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isLoggedIn = ref.watch(authStateProvider).value ?? false;
+    final unreadCount = isLoggedIn ? ref.watch(unreadNotificationCountProvider).value ?? 0 : 0;
+    return InkWell(
+      onTap: () => _open(context, ref),
+      borderRadius: BorderRadius.circular(99),
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(color: AppColors.iconChipBg, shape: BoxShape.circle),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.notifications_outlined, color: AppColors.iconChipFg, size: 19),
+            if (unreadCount > 0)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.iconChipBg, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

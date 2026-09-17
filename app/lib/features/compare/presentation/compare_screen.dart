@@ -276,8 +276,56 @@ class _NearbyCoursePreview extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const SizedBox.shrink(),
+      loading: () => const _GeneratingCourseHint(),
       error: (_, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// AI 코스 생성엔 몇 초 걸리는데, 그동안 화면이 비어있으면 이 기능을 모르는
+/// 사용자는 안내를 못 받고 뒤로 나가버릴 수 있다 — 깜빡이는 안내 문구로
+/// "지금 뭔가 만들어지고 있다"는 걸 최소한으로 알려준다.
+class _GeneratingCourseHint extends StatefulWidget {
+  const _GeneratingCourseHint();
+
+  @override
+  State<_GeneratingCourseHint> createState() => _GeneratingCourseHintState();
+}
+
+class _GeneratingCourseHintState extends State<_GeneratingCourseHint> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome, size: 16, color: AppColors.accentDeep),
+          const SizedBox(width: 6),
+          Expanded(
+            child: FadeTransition(
+              opacity: _controller.drive(
+                Tween<double>(begin: 0.35, end: 1).chain(CurveTween(curve: Curves.easeInOut)),
+              ),
+              child: Text(
+                'AI가 이 장소의 코스를 생성하고 있어요...',
+                style: AppTypography.caption.copyWith(color: AppColors.accentDeep),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

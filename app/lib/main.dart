@@ -42,7 +42,9 @@ class _StartupSplashState extends State<_StartupSplash> {
     debugShowCheckedModeBanner: false,
     home: Scaffold(
       backgroundColor: Color(0xFFF2EFEA),
-      body: Center(child: Image(image: AssetImage('assets/logo/logo.png'), width: 220)),
+      body: SizedBox.expand(
+        child: Image(image: AssetImage('assets/logo/splash.png'), fit: BoxFit.cover),
+      ),
     ),
   );
 }
