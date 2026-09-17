@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 
 /// 사진이 없는 장소/코스에 쓰는 공용 대체 화면.
 ///
@@ -7,9 +8,12 @@ import '../../core/theme/app_colors.dart';
 /// 백엔드가 이제 특정 장소 사진이 없으면 시/군 대표 사진으로 거의 항상 채워주므로
 /// (완전히 없는 경우는 드묾) 남은 예외는 "사진 없음"을 있는 그대로 보여주는 게 맞다.
 class PhotoFallback extends StatelessWidget {
-  const PhotoFallback({super.key, this.icon = Icons.photo_camera_back_outlined});
+  const PhotoFallback({super.key, this.icon = Icons.photo_camera_back_outlined, this.label});
 
   final IconData icon;
+  // "정말로 사진이 없는" 경우에만 채워서 넘긴다(로딩/에러 중 임시 표시엔 안 씀) —
+  // 사용자가 "왜 이 정류지는 사진이 안 나오지"라고 헷갈리지 않게 작은 글씨로 알려준다.
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +26,16 @@ class PhotoFallback extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(icon, color: AppColors.inkTertiary, size: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.inkTertiary, size: 40),
+            if (label != null) ...[
+              const SizedBox(height: 6),
+              Text(label!, style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
+            ],
+          ],
+        ),
       ),
     );
   }

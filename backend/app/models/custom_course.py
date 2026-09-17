@@ -20,6 +20,10 @@ class CustomCoursePlaceInput(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     image_url: str | None = None
+    # image_url이 구글 플레이스 사진일 때만 채워진다(서버가 자동 보강한 경우) —
+    # 구글 이용약관상 사진을 보여주려면 기여자 출처 표기를 같이 보여줘야 한다.
+    photo_attribution_name: str | None = None
+    photo_attribution_url: str | None = None
     # 이 장소에 대한 작성자의 짧은 코멘트 — 코스 하나짜리 소개(description)와
     # 별개로 장소마다 남길 수 있다.
     note: str | None = Field(default=None, max_length=300)

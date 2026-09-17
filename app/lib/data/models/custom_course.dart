@@ -9,6 +9,8 @@ class CustomCoursePlace {
     this.latitude,
     this.longitude,
     this.imageUrl,
+    this.photoAttributionName,
+    this.photoAttributionUrl,
     this.note,
   });
 
@@ -19,6 +21,9 @@ class CustomCoursePlace {
   final double? latitude;
   final double? longitude;
   final String? imageUrl;
+  // imageUrl이 구글 플레이스 사진일 때만(서버가 저장 시점에 자동 보강한 경우) 채워진다.
+  final String? photoAttributionName;
+  final String? photoAttributionUrl;
   // 이 장소에 대한 작성자의 짧은 코멘트.
   final String? note;
 
@@ -36,6 +41,7 @@ class CustomCoursePlace {
         latitude: latitude,
         longitude: longitude,
         imageUrl: imageUrl,
+        // 새 imageUrl(직접 업로드 등)로 바꾸는 거라 예전 구글 출처 표기는 같이 지운다.
         note: note,
       );
 
@@ -48,6 +54,8 @@ class CustomCoursePlace {
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       imageUrl: json['image_url'] as String?,
+      photoAttributionName: json['photo_attribution_name'] as String?,
+      photoAttributionUrl: json['photo_attribution_url'] as String?,
       note: json['note'] as String?,
     );
   }
@@ -60,6 +68,8 @@ class CustomCoursePlace {
         'latitude': latitude,
         'longitude': longitude,
         'image_url': imageUrl,
+        'photo_attribution_name': photoAttributionName,
+        'photo_attribution_url': photoAttributionUrl,
         'note': note,
       };
 }

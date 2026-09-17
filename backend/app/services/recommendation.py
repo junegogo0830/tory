@@ -144,7 +144,7 @@ class RecommendationService:
         return list(await asyncio.gather(*(self._enrich_course(c) for c in courses)))
 
     async def get_course_by_id(self, course_id: str) -> CourseResponse | None:
-        cached = await cache_get(f"course-detail:v4:{course_id}")
+        cached = await cache_get(f"course-detail:v5:{course_id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
         if course_id.startswith("llm-"):
@@ -182,7 +182,7 @@ class RecommendationService:
         # v5: course.id는 위치+계절로 정해지는 고정값이라, CourseGeneratorService의
         # 후보 생성 로직이 바뀌어도(예: 구글 플레이스 Nearby Search 보강 추가) 이
         # 캐시 버전을 같이 올리지 않으면 같은 id로 예전 결과가 계속 나온다.
-        cached = await cache_get(f"enriched-course:v7:{course.id}")
+        cached = await cache_get(f"enriched-course:v8:{course.id}")
         if cached:
             return CourseResponse.model_validate_json(cached)
         location = await self._tour_api_service.get_location_by_id(course.location_id) if course.location_id else None
@@ -242,6 +242,6 @@ class RecommendationService:
                 image_url = await self._tour_api_service.get_city_image(location.region)
 
         result = course.model_copy(update={"stops": enriched_stops, "image_url": image_url})
-        await cache_set(f"enriched-course:v7:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
-        await cache_set(f"course-detail:v4:{course.id}", result.model_dump_json(), ex=86400)
+        await cache_set(f"enriched-course:v8:{course.id}", result.model_dump_json(), ex=3600 if image_url else 60)
+        await cache_set(f"course-detail:v5:{course.id}", result.model_dump_json(), ex=86400)
         return result

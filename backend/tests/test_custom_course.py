@@ -54,6 +54,58 @@ def _create_request(**overrides) -> CustomCourseCreateRequest:
 
 
 @pytest.mark.asyncio
+async def test_create_backfills_missing_place_photos(db):
+    """검색 결과에 사진이 없던 장소(학교 등 카카오 검색으로 고른 곳)는 저장 시점에
+    국문 관광정보 API → 구글 플레이스 순으로 보강한다. 이미 사진이 있는 장소는
+    그대로 두고(불필요한 외부 호출 방지) 관광지로 등록된 곳은 구글 출처 표기 없이 쓴다."""
+    class Tour:
+        async def find_place_info(self, keyword):
+            if keyword == "아주대학교":
+                return {"image_url": "https://tour/ajou.jpg", "latitude": 37.28, "longitude": 127.04}
+            return None
+
+    class GooglePlaces:
+        def __init__(self):
+            self.queried = []
+        async def find_photo(self, name, region=None):
+            self.queried.append(name)
+            return {
+                "image_url": f"https://google/{name}.jpg",
+                "attribution_name": "기여자",
+                "attribution_url": "https://maps.google.com/contrib/1",
+            }
+
+    google = GooglePlaces()
+    service = CustomCourseService(tour_api_service=Tour(), google_places_service=google)
+    author = User(kakao_id="photo-author", nickname="작성자")
+    db.add(author)
+    await db.commit()
+
+    created = await service.create(db, author, _create_request(places=[
+        CustomCoursePlaceInput(
+            source="tour", place_id="tour-1", name="아주대학교", address="경기 수원시", latitude=37.28, longitude=127.04,
+        ),
+        CustomCoursePlaceInput(
+            source="kakao", place_id="kakao-1", name="영덕고등학교", address="경기 수원시", latitude=37.25, longitude=127.08,
+        ),
+        CustomCoursePlaceInput(
+            source="tour", place_id="tour-2", name="이미사진있음", address="서울", latitude=37.5, longitude=127.0,
+            image_url="https://existing.jpg",
+        ),
+    ]))
+
+    by_name = {p.name: p for p in created.places}
+    assert by_name["아주대학교"].image_url == "https://tour/ajou.jpg"
+    assert by_name["아주대학교"].photo_attribution_name is None
+    assert by_name["영덕고등학교"].image_url == "https://google/영덕고등학교.jpg"
+    assert by_name["영덕고등학교"].photo_attribution_name == "기여자"
+    assert by_name["영덕고등학교"].photo_attribution_url == "https://maps.google.com/contrib/1"
+    assert by_name["이미사진있음"].image_url == "https://existing.jpg"
+    assert "이미사진있음" not in google.queried
+    assert "아주대학교" not in google.queried  # TourAPI에서 이미 찾았으니 구글까지 안 감
+
+
+@pytest.mark.asyncio
 async def test_create_and_list_custom_course(db):
     service = CustomCourseService()
     author = User(kakao_id="course-author", nickname="작성자")

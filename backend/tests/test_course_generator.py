@@ -55,6 +55,8 @@ async def test_candidate_pool_drops_photos_that_do_not_match_tour_info() -> None
     class Tour:
         async def match_tour_info(self, name, region=""):
             return None
+        async def find_nearby_places(self, **kwargs):
+            return []
 
     service = CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
     candidates = await service._build_photo_backed_candidates(
@@ -77,6 +79,8 @@ async def test_candidate_pool_drops_matches_too_far_away() -> None:
                 "address": "다른 지역", "category": "관광지",
                 "latitude": 30.0, "longitude": 120.0,  # 아주 먼 좌표
             }
+        async def find_nearby_places(self, **kwargs):
+            return []
 
     service = CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
     candidates = await service._build_photo_backed_candidates(
@@ -108,6 +112,41 @@ async def test_candidate_pool_falls_back_to_google_places_when_photo_gallery_is_
     assert {c["title"] for c in candidates} == {"구글로 찾은 카페", "구글로 찾은 공원"}
     assert all(c["image_url"] for c in candidates)
     assert all(c["content_id"] is None for c in candidates)
+
+
+@pytest.mark.asyncio
+async def test_candidate_pool_falls_back_to_tourapi_nearby_when_photo_gallery_and_google_are_both_thin() -> None:
+    """관광사진 API도 구글 플레이스도 도움이 안 되는 동네(실측: 청명역 인근 —
+    관광사진 API 0건, 구글 Nearby Search 상위는 터널·매장뿐)는 TourAPI 좌표
+    검색(locationBasedList2)으로 마지막 채운다."""
+    class Photo:
+        async def search_photos(self, keyword, num_rows=30):
+            return []
+
+    class GooglePlaces:
+        async def find_nearby(self, **kwargs):
+            return []  # 이 동네에선 구글 인기순 상위에 걸맞는 후보가 없음
+
+    class Tour:
+        async def find_nearby_places(self, **kwargs):
+            return [
+                {"title": "영흥숲공원", "category": "관광지", "image_url": None,
+                 "distance_m": 800, "addr": "경기 수원시", "latitude": 37.26, "longitude": 127.08},
+                {"title": "반달공원", "category": "관광지", "image_url": "https://img/bandal.jpg",
+                 "distance_m": 900, "addr": "경기 수원시", "latitude": 37.261, "longitude": 127.081},
+                {"title": "청명역한빛공인중개사", "category": "관광지", "image_url": None,
+                 "distance_m": 100, "addr": "경기 수원시", "latitude": 37.2601, "longitude": 127.0788},
+            ]
+
+    service = CourseGeneratorService(
+        tour_api_service=Tour(), photo_gallery_service=Photo(), google_places_service=GooglePlaces()
+    )
+    candidates = await service._build_photo_backed_candidates(
+        _location(latitude=37.2595, longitude=127.0789)
+    )
+    titles = {c["title"] for c in candidates}
+    assert titles == {"영흥숲공원", "반달공원"}
+    assert "청명역한빛공인중개사" not in titles  # 상호명 블랙리스트(공인중개사)로 제외
 
 
 @pytest.mark.asyncio
@@ -153,6 +192,8 @@ async def test_candidate_pool_keeps_photo_backed_nearby_match() -> None:
                 "address": "근처 주소", "category": "관광지",
                 "latitude": 37.101, "longitude": 127.101,
             }
+        async def find_nearby_places(self, **kwargs):
+            return []
 
     service = CourseGeneratorService(tour_api_service=Tour(), photo_gallery_service=Photo())
     candidates = await service._build_photo_backed_candidates(

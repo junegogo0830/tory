@@ -13,6 +13,7 @@ from ..models.location import LocationResponse
 from .google_places import GooglePlacesService
 from .photo_gallery import PhotoGalleryService
 from .tourapi import TourApiService
+from .tourism_filters import looks_non_touristy
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +80,14 @@ class CourseGeneratorService:
     3-1. 그래도 후보가 2곳 미만이면(사진 갤러리 커버리지가 얕은 지역) 구글
        플레이스 Nearby Search로 좌표 반경 안 실제 장소를 추가로 찾아 채운다 —
        이쪽도 사진이 있는 결과만 후보로 쓴다.
+    3-2. 그래도 2곳 미만이면(구글 Nearby Search도 이 근처 상권/시설을 인기도
+       순으로 채워 실제 관광지가 상위에 안 잡히는 동네가 있다) TourApiService의
+       좌표 기반 검색(locationBasedList2, contenttypeid=12)으로 마지막으로
+       채운다 — 대표사진이 없는 결과가 섞일 수 있어 5번 단계의 사진 보강에 맡긴다.
     4. Claude는 이 pool에 있는 장소 이름만 골라 방문 순서를 정한다 — pool 밖
        이름을 반환해도 _parse_course가 무시한다(hallucination 방지).
     5. Claude가 고른 정류지 중에도(드물게) 사진이 비어 있으면 GooglePlacesService로
-       마지막 한 번 더 보강한다 — 후보 자체는 위 두 소스가 보장하지만, 매칭
+       마지막 한 번 더 보강한다 — 후보 자체는 위 세 소스가 보장하지만, 매칭
        과정에서 photo_url이 비는 극히 일부 경우를 위한 안전망이다.
 
     옛길 팀이 큐레이션한 3곳(순천/군산/영월)은 이 서비스를 타지 않고 기존
@@ -113,15 +118,15 @@ class CourseGeneratorService:
         if location.latitude is None or location.longitude is None:
             return None
 
-        # v4: 관광사진 API 후보 부족 시 구글 플레이스 Nearby Search로 보강하는
-        # 로직 추가 + 구글 결과에 language=ko 적용 — 이전 버전 캐시(영문 장소명
-        # 포함 가능)를 무효화한다.
-        cache_key = f"gencourse:v6:{location.id}:{season}"
+        # v7: 구글 Nearby Search도 얕은 동네를 위해 TourAPI 좌표 검색(3순위)을
+        # 후보 소스에 추가 + 상호명 블랙리스트 적용 — 이전 캐시(그때는 후보가
+        # 없어서 null로 캐싱됐을 수 있는 지역)를 무효화한다.
+        cache_key = f"gencourse:v7:{location.id}:{season}"
         cached = await cache_get(cache_key)
         if cached is not None:
             course = CourseResponse.model_validate_json(cached) if cached != "null" else None
             if course:
-                await cache_set(f"course-detail:v4:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await cache_set(f"course-detail:v5:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             return course
 
         course = await self._generate(location, season)
@@ -129,7 +134,7 @@ class CourseGeneratorService:
         await cache_set(cache_key, course.model_dump_json() if course else "null",
                         ex=_CACHE_TTL_SECONDS if course else 60)
         if course:
-            await cache_set(f"course-detail:v4:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+            await cache_set(f"course-detail:v5:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
         return course
 
     async def _generate(self, location: LocationResponse, season: str) -> CourseResponse | None:
@@ -251,7 +256,7 @@ class CourseGeneratorService:
                 latitude=location.latitude, longitude=location.longitude, radius_m=_SEARCH_RADIUS_M
             )
             for place in nearby:
-                if place["title"] in candidate_titles:
+                if place["title"] in candidate_titles or looks_non_touristy(place["title"]):
                     continue
                 candidate_titles.add(place["title"])
                 distance_km = _distance_km(
@@ -267,6 +272,37 @@ class CourseGeneratorService:
                     "image_url": place["image_url"],
                     "photo_attribution_name": place.get("attribution_name"),
                     "photo_attribution_url": place.get("attribution_url"),
+                    "content_id": None,
+                })
+
+        # 3순위 폴백: 관광사진 API도, 구글 인기순 상위 결과도 도움이 안 되는
+        # 동네가 있다(실측 확인: 청명역 인근은 관광사진 API 0건, 구글 Nearby
+        # Search 상위는 터널·옷가게뿐이라 사진 필터를 통과하는 게 하나도 없었음
+        # — 정작 TourAPI 좌표 검색엔 공원 10곳이 잡혔다). TourAPI는 "인기순"이
+        # 아니라 실제 등록 관광지를 좌표로 찾아주므로 마지막 순서로 추가한다.
+        # 사진이 없는 결과가 섞일 수 있어(TourAPI 자체 대표사진 미등록) 이 항목은
+        # _fill_missing_photos가 정류지로 뽑힌 뒤 구글로 한 번 더 보강을 시도한다.
+        if len(candidates) < 2:
+            tour_nearby = await self._tour_api_service.find_nearby_places(
+                latitude=location.latitude, longitude=location.longitude,
+                radius_m=_SEARCH_RADIUS_M, num_rows=20, content_type_id="12",
+            )
+            for place in tour_nearby:
+                if (
+                    place["title"] in candidate_titles
+                    or place["latitude"] is None or place["longitude"] is None
+                    or looks_non_touristy(place["title"])
+                ):
+                    continue
+                candidate_titles.add(place["title"])
+                candidates.append({
+                    "title": place["title"],
+                    "category": place.get("category", "관광지"),
+                    "distance_m": place.get("distance_m"),
+                    "addr": place.get("addr", ""),
+                    "latitude": place["latitude"],
+                    "longitude": place["longitude"],
+                    "image_url": place.get("image_url"),
                     "content_id": None,
                 })
 

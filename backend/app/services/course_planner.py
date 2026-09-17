@@ -17,6 +17,7 @@ from ..models.course import CourseGenerateRequest, CourseResponse, CourseStop
 from .google_places import GooglePlacesService
 from .tourapi import TourApiService
 from .kakao_local import KakaoLocalService
+from .tourism_filters import looks_non_touristy
 from .weather import WeatherService
 
 logger = logging.getLogger(__name__)
@@ -71,23 +72,6 @@ CATEGORY_TAXONOMY: dict[str, dict] = {
 _INDOOR_CATEGORIES = {"문화", "미식"}
 
 _SOURCE_PRIORITY = {"tourapi": 0, "google": 1, "kakao": 2}
-
-# cat1 필터를 통과해도 TourAPI/카카오 등록 자체가 관광 목적이 아닌 일반
-# 행정/생활 시설인 경우가 있어(위 cat1 주석 참고), 상호명에 이 패턴이 있으면
-# 관심사 매칭과 무관하게 후보에서 제외한다. 구글 플레이스는 자체 타입
-# 화이트리스트(_ALLOWED_TYPES)로 이미 걸러지므로 여기 적용해도 걸릴 일은 거의 없다.
-_NON_TOURISM_NAME_MARKERS = (
-    "주민센터", "치안센터", "파출소", "지구대", "우체국", "농협", "수협", "새마을금고", "신협",
-    "부동산", "공인중개사", "노인회", "부녀회", "자치회", "통장협의회", "지회", "협회", "조합",
-    "사우나", "찜질방", "목욕탕", "미용실", "네일", "세탁소",
-    "정형외과", "피부과", "치과", "한의원", "약국", "동물병원",
-    "학원", "어린이집", "유치원", "독서실", "고시원",
-    "장례식장", "상조", "주차장", "충전소", "주유소", "정비소", "타이어",
-)
-
-
-def _looks_non_touristy(name: str) -> bool:
-    return any(marker in name for marker in _NON_TOURISM_NAME_MARKERS)
 
 _POLISH_SYSTEM_PROMPT = """당신은 "옛길" 앱의 코스 마무리 담당자입니다.
 이미 확정된 정류지 목록(이동거리·소요시간 제약을 모두 통과한 실제 장소들)의
@@ -204,7 +188,7 @@ class CoursePlanner:
                 continue
             if distance_km(coords, (lat, lng)) > 7:
                 continue
-            if _looks_non_touristy(p["title"]):
+            if looks_non_touristy(p["title"]):
                 continue
             valid.append(p)
 
@@ -218,7 +202,7 @@ class CoursePlanner:
             google_items = []
             for g in google_raw:
                 matched = {c for c in request.categories if CATEGORY_TAXONOMY[c]["google_types"] & set(g.get("types", []))}
-                if not matched or _looks_non_touristy(g["title"]):
+                if not matched or looks_non_touristy(g["title"]):
                     continue
                 google_items.append({
                     "title": g["title"], "latitude": g["latitude"], "longitude": g["longitude"], "addr": g.get("address", ""),

@@ -208,8 +208,9 @@ class _HeroImage extends StatelessWidget {
 
 /// 이 장소 주변 추천 코스 미리보기. 큐레이션 3곳은 손으로 다듬은 코스, 그 밖의
 /// 검색된 장소는 좌표 기반 실제 주변 장소 + LLM으로 그 계절에 맞게 생성된 코스다.
-/// 코스가 없으면(좌표 없음/생성 실패 등) 조용히 아무것도 안 보여준다 — 로드뷰·뉴스
-/// 카드와 달리 이건 있으면 좋은 보조 정보라 빈 상태 UI까지는 필요 없다.
+/// 코스가 없으면(좌표 없음/생성 실패 등) 왜 없는지 작은 안내 문구를 보여준다 —
+/// 예전엔 조용히 아무것도 안 보여줬는데, 사용자 입장에서는 "이 근처는 관광지
+/// 정보가 부족해서 못 만든 것"과 "버그"를 구분할 수 없어 혼란스러웠다.
 class _NearbyCoursePreview extends ConsumerWidget {
   const _NearbyCoursePreview({required this.locationId});
 
@@ -221,7 +222,24 @@ class _NearbyCoursePreview extends ConsumerWidget {
 
     return coursesAsync.when(
       data: (courses) {
-        if (courses.isEmpty) return const SizedBox.shrink();
+        if (courses.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: AppColors.inkTertiary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '이 근처는 아직 추천할 만한 관광지 정보가 부족해서 코스를 만들지 못했어요.',
+                    style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         final course = courses.first;
 
         return AppCard(

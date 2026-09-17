@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 
@@ -11,13 +12,16 @@ from ..db.models import CustomCourse, CustomCourseComment, CustomCourseVote, Use
 from ..models.custom_course import (
     CustomCourseCommentResponse,
     CustomCourseCreateRequest,
+    CustomCoursePlaceInput,
     CustomCoursePlaceResponse,
     CustomCourseResponse,
     CustomCourseSummaryResponse,
     CustomCourseUpdateRequest,
 )
+from .google_places import GooglePlacesService
 from .map_html import render_map_page, render_message_page
 from .photo_upload import save_uploaded_photo
+from .tourapi import TourApiService
 
 _MAX_COMMENT_LENGTH = 300
 
@@ -26,6 +30,36 @@ class CustomCourseService:
     """사용자가 직접 만들어 커뮤니티에 공유하는 "코스 커스텀" — 우리 DB가
     소스 오브 트루스인 콘텐츠 타입이라 community.py의 게시글/좋아요/댓글
     패턴을 그대로 따른다(투표만 좋아요와 달리 -1/1 두 방향)."""
+
+    def __init__(
+        self, tour_api_service: TourApiService | None = None, google_places_service: GooglePlacesService | None = None
+    ) -> None:
+        self._tour_api_service = tour_api_service or TourApiService()
+        self._google_places_service = google_places_service or GooglePlacesService()
+
+    async def _backfill_photo(self, place: CustomCoursePlaceInput) -> CustomCoursePlaceInput:
+        """카카오맵 검색으로 고른 장소(학교/아파트 등)는 애초에 사진이 없고,
+        TourAPI 검색으로 고른 장소도 대표사진이 없는 경우가 있다 — 저장 시점에
+        한 번 채워서(매번 다시 찾지 않게) 스냅샷에 같이 남긴다. 국문 관광정보
+        API 키워드 매칭을 먼저 시도하고(등록된 관광지면 출처 표기 없이 바로
+        쓸 수 있음), 안 되면 구글 플레이스로 보강한다(대학교·일반 업체처럼
+        관광지로 등록 안 된 곳도 커버 범위가 넓다)."""
+        if place.image_url:
+            return place
+        info = await self._tour_api_service.find_place_info(place.name)
+        if info and info.get("image_url"):
+            return place.model_copy(update={"image_url": info["image_url"]})
+        photo = await self._google_places_service.find_photo(place.name, place.address)
+        if photo:
+            return place.model_copy(update={
+                "image_url": photo["image_url"],
+                "photo_attribution_name": photo["attribution_name"],
+                "photo_attribution_url": photo["attribution_url"],
+            })
+        return place
+
+    async def _backfill_photos(self, places: list[CustomCoursePlaceInput]) -> list[CustomCoursePlaceInput]:
+        return list(await asyncio.gather(*(self._backfill_photo(p) for p in places)))
 
     async def _course(self, db: AsyncSession, course_id: int) -> CustomCourse:
         course = await db.get(CustomCourse, course_id)
@@ -62,12 +96,13 @@ class CustomCourseService:
         )
 
     async def create(self, db: AsyncSession, user: User, body: CustomCourseCreateRequest) -> CustomCourseResponse:
+        places = await self._backfill_photos(body.places)
         course = CustomCourse(
             user_id=user.id,
             title=body.title,
             category=body.category,
             description=body.description,
-            places_json=json.dumps([p.model_dump() for p in body.places]),
+            places_json=json.dumps([p.model_dump() for p in places]),
             is_public=body.is_public,
         )
         db.add(course)
@@ -80,10 +115,11 @@ class CustomCourseService:
         course = await self._course(db, course_id)
         if course.user_id != user.id:
             raise HTTPException(403, "작성자만 수정할 수 있어요")
+        places = await self._backfill_photos(body.places)
         course.title = body.title
         course.category = body.category
         course.description = body.description
-        course.places_json = json.dumps([p.model_dump() for p in body.places])
+        course.places_json = json.dumps([p.model_dump() for p in places])
         course.is_public = body.is_public
         await db.commit()
         return await self.detail(db, course_id, user)

@@ -13,6 +13,7 @@ import '../../../core/utils/kakao_map_links.dart';
 import '../../../data/models/custom_course.dart';
 import '../../../data/models/memory_match.dart';
 import '../../../data/repositories/repository_providers.dart';
+import '../../../shared/widgets/photo_attribution_badge.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 import '../../../shared/widgets/save_course_button.dart';
 import '../../auth/data/auth_providers.dart';
@@ -418,12 +419,26 @@ class _JourneyPhotoCard extends StatelessWidget {
                     height: 140,
                     width: double.infinity,
                     child: place.imageUrl == null
-                        ? const PhotoFallback()
-                        : AppNetworkImage(
-                            imageUrl: place.imageUrl!,
-                            fit: BoxFit.cover,
-                            placeholder: (_, _) => const PhotoFallback(),
-                            errorWidget: (_, _, _) => const PhotoFallback(),
+                        ? const PhotoFallback(label: '사진이 없어요')
+                        : Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              AppNetworkImage(
+                                imageUrl: place.imageUrl!,
+                                fit: BoxFit.cover,
+                                placeholder: (_, _) => const PhotoFallback(),
+                                errorWidget: (_, _, _) => const PhotoFallback(),
+                              ),
+                              if (place.photoAttributionName != null)
+                                Positioned(
+                                  right: 6,
+                                  bottom: 6,
+                                  child: PhotoAttributionBadge(
+                                    name: place.photoAttributionName,
+                                    url: place.photoAttributionUrl,
+                                  ),
+                                ),
+                            ],
                           ),
                   ),
                 ),

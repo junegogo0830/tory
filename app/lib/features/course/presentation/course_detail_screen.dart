@@ -81,6 +81,15 @@ class CourseDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+                ] else ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.card),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 10,
+                      child: const PhotoFallback(icon: Icons.route_outlined, label: '사진이 없어요'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 ],
                 Text(course.title, style: AppTypography.largeTitle),
                 const SizedBox(height: 8),
@@ -347,7 +356,7 @@ class _StopPhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return stop.imageUrl == null
-        ? const PhotoFallback(icon: Icons.route_outlined)
+        ? const PhotoFallback(icon: Icons.route_outlined, label: '사진이 없어요')
         : AppNetworkImage(
             imageUrl: stop.imageUrl!,
             fit: BoxFit.cover,
