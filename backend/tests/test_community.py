@@ -117,7 +117,7 @@ def test_list_posts_uses_community_service(monkeypatch) -> None:
     from app.models.community import CommunityPostResponse
     from app.services.community import CommunityService
 
-    async def _fake_list_posts(self: CommunityService, db, *, region, board, limit=20, offset=0, viewer_id=None, query=""):  # noqa: ANN001, ARG001
+    async def _fake_list_posts(self: CommunityService, db, *, region, board, limit=20, offset=0, viewer_id=None, query="", category=None):  # noqa: ANN001, ARG001
         return [
             CommunityPostResponse(
                 id=1,

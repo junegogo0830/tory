@@ -324,16 +324,21 @@ class _RestaurantSingle extends StatelessWidget {
 
   final KakaoRestaurant item;
 
+  // 카드 전체 높이(108)는 그대로 두고 사진만 세로 여백을 꽉 채우도록 키운다 —
+  // 108 - Container padding(12*2) = 84가 Row에 쓸 수 있는 최대 높이.
+  static const double _photoHeight = 84;
+  static const double _photoWidth = 112;
+
   Widget _emojiBadge() {
     return Container(
-      width: 64,
-      height: 64,
+      width: _photoWidth,
+      height: _photoHeight,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: pastelForFoodCategory(item.category),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(emojiForFoodCategory(item.category), style: const TextStyle(fontSize: 30)),
+      child: Text(emojiForFoodCategory(item.category), style: const TextStyle(fontSize: 34)),
     );
   }
 
@@ -375,8 +380,8 @@ class _RestaurantSingle extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
-                  width: 64,
-                  height: 64,
+                  width: _photoWidth,
+                  height: _photoHeight,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [

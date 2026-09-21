@@ -13,7 +13,7 @@ from ..models.location import LocationResponse
 from .google_places import GooglePlacesService
 from .photo_gallery import PhotoGalleryService
 from .tourapi import TourApiService
-from .tourism_filters import looks_non_touristy
+from .tourism_filters import is_food_candidate, looks_non_touristy
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,10 @@ _SYSTEM_PROMPT = """당신은 "옛길" 앱의 동네 여행 코스 기획자입�
 
 규칙:
 - 반드시 제공된 후보 목록에 있는 장소 이름만 정류지로 씁니다 (새로 지어내지 않음).
+- 후보 목록은 이미 관광지·문화시설·자연 등 관광 목적 장소만 걸러져 있습니다 —
+  식당·카페는 이 단계에서 다루지 않습니다(식사는 사용자가 원할 때 코스가
+  만들어진 뒤 별도로 추가합니다). 후보에 식당이 섞여 있어도 넣지 마세요.
 - 사용자가 설정한 시간·속도·관심 카테고리를 최우선으로 지킵니다.
-- 식당은 코스 중간 또는 마지막에 한 곳만 배치하고 식사 60분을 배정합니다.
-- 식당을 연달아 배치하지 말고 식사 전후에 관광지·문화시설·공원을 섞습니다.
 - 후보 간 이동시간과 총 체류시간이 사용자 시간 안에 들어오는 순서만 선택합니다.
 - 시간이 부족하면 장소 수를 줄이고 무리해서 후보를 나열하지 않습니다.
 - 출력은 반드시 "{"로 시작해서 "}"로 끝나는 순수 JSON 하나뿐이어야 합니다.
@@ -121,12 +122,12 @@ class CourseGeneratorService:
         # v7: 구글 Nearby Search도 얕은 동네를 위해 TourAPI 좌표 검색(3순위)을
         # 후보 소스에 추가 + 상호명 블랙리스트 적용 — 이전 캐시(그때는 후보가
         # 없어서 null로 캐싱됐을 수 있는 지역)를 무효화한다.
-        cache_key = f"gencourse:v7:{location.id}:{season}"
+        cache_key = f"gencourse:v8:{location.id}:{season}"
         cached = await cache_get(cache_key)
         if cached is not None:
             course = CourseResponse.model_validate_json(cached) if cached != "null" else None
             if course:
-                await cache_set(f"course-detail:v5:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await cache_set(f"course-detail:v6:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             return course
 
         course = await self._generate(location, season)
@@ -134,7 +135,7 @@ class CourseGeneratorService:
         await cache_set(cache_key, course.model_dump_json() if course else "null",
                         ex=_CACHE_TTL_SECONDS if course else 60)
         if course:
-            await cache_set(f"course-detail:v5:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+            await cache_set(f"course-detail:v6:{course.id}", course.model_dump_json(), ex=_CACHE_TTL_SECONDS)
         return course
 
     async def _generate(self, location: LocationResponse, season: str) -> CourseResponse | None:
@@ -152,8 +153,7 @@ class CourseGeneratorService:
         user_prompt = (
             f"장소: {location.name} ({location.region})\n계절: {season}\n\n"
             f"반경 {_SEARCH_RADIUS_M}m 이내 실제 후보:\n{candidate_lines}\n\n"
-            "방문 순서는 이동시간과 체류시간을 계산해 현실적으로 구성하세요. "
-            "식당은 식사 60분을 포함하고 가장 적합한 한 곳만 선택하세요."
+            "방문 순서는 이동시간과 체류시간을 계산해 현실적으로 구성하세요."
         )
 
         try:
@@ -235,6 +235,7 @@ class CourseGeneratorService:
             return {
                 "title": info["name"],
                 "category": info["category"],
+                "content_type_id": info["content_type_id"],
                 "distance_m": round(distance_km * 1000),
                 "addr": info["address"],
                 "latitude": info["latitude"],
@@ -247,16 +248,21 @@ class CourseGeneratorService:
         candidates: list[dict] = []
         candidate_titles: set[str] = set()
         for candidate in resolved:
-            if candidate is not None and candidate["title"] not in candidate_titles:
-                candidate_titles.add(candidate["title"])
-                candidates.append(candidate)
+            if candidate is None or candidate["title"] in candidate_titles or is_food_candidate(candidate):
+                continue
+            candidate_titles.add(candidate["title"])
+            candidates.append(candidate)
 
         if len(candidates) < 2:
             nearby = await self._google_places_service.find_nearby(
                 latitude=location.latitude, longitude=location.longitude, radius_m=_SEARCH_RADIUS_M
             )
             for place in nearby:
-                if place["title"] in candidate_titles or looks_non_touristy(place["title"]):
+                if (
+                    place["title"] in candidate_titles
+                    or looks_non_touristy(place["title"])
+                    or is_food_candidate(place)
+                ):
                     continue
                 candidate_titles.add(place["title"])
                 distance_km = _distance_km(

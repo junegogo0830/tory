@@ -4,8 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from ...db.models import User
 from ...db.postgres import get_db_session
-from ...models.course import CourseResponse, CourseGenerateRequest
+from ...models.course import (
+    CourseResponse,
+    CourseGenerateRequest,
+    InsertMealsRequest,
+    MealCandidateRequest,
+    RestaurantCandidateResponse,
+)
 from ...services.course_planner import CoursePlanner
+from ...services.meal_planner import MealPlannerService
 from ...services.profile import ProfileService
 from ...services.recommendation import RecommendationService
 from ..deps import get_optional_user
@@ -14,6 +21,7 @@ router = APIRouter(prefix="/api/course", tags=["course"])
 _recommendation_service = RecommendationService()
 _planner = CoursePlanner()
 _profile_service = ProfileService()
+_meal_planner_service = MealPlannerService()
 
 
 @router.post('/generate', response_model=CourseResponse)
@@ -57,3 +65,24 @@ async def get_course_by_coords(lat: float, lng: float) -> CourseResponse | None:
     """"현재 위치" 기반 코스. 등록된 장소가 아니어도 좌표만으로 생성한다.
     주변 후보가 부족하면(콜드스팟 등) null."""
     return await _recommendation_service.get_course_by_coords(lat, lng)
+
+
+@router.post("/meal-candidates", response_model=dict[str, list[RestaurantCandidateResponse]])
+async def meal_candidates(body: MealCandidateRequest) -> dict[str, list[RestaurantCandidateResponse]]:
+    """이미 만들어진 관광 코스에 식사를 추가하기 전 단계 — 식사 시간대별로 실제
+    음식점 후보를 검색하고 Claude가 순위만 매긴다(최종 선택은 사용자 몫)."""
+    return await _meal_planner_service.find_candidates(
+        body.course,
+        meal_types=body.meal_types,
+        food_categories=body.food_categories,
+        price_range=body.price_range,
+        age_group=body.age_group,
+    )
+
+
+@router.post("/meals", response_model=CourseResponse)
+async def insert_meals(body: InsertMealsRequest) -> CourseResponse:
+    """사용자가 식사별로 고른 식당을 코스에 반영 — 새 장소를 추천하지 않고
+    좌표 기반으로 삽입 위치만 재계산한다. 같은 요청을 다른 식당으로 다시
+    보내면 "변경"이 되고, meals를 비운 채(기존 식사 없이) 보내면 "삭제"가 된다."""
+    return _meal_planner_service.insert_meals(body.course, body.meals)

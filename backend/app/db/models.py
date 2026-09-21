@@ -13,6 +13,9 @@ class User(Base):
     # 카카오 로그인 사용자만 채워진다 — 자체 회원가입 사용자는 None(NULL은 유니크
     # 인덱스에서 서로 충돌하지 않으므로 여러 명이 동시에 None이어도 괜찮다).
     kakao_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    # 네이버 로그인 사용자만 채워진다 — kakao_id와 같은 패턴(널 여러 개는 유니크
+    # 인덱스에서 서로 충돌하지 않는다).
+    naver_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
     # 자체 회원가입 사용자만 채워진다 — 카카오 사용자는 None.
     username: Mapped[str | None] = mapped_column(String(30), unique=True, index=True, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -140,6 +143,13 @@ class CommunityPost(Base):
     reveal_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 신고 누적으로 자동 숨김 처리된 글. 숨겨지면 목록/상세 모두에서 제외한다.
     hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # 상세 화면을 열 때마다 1씩 늘어난다(같은 사람이 여러 번 봐도 그냥 누적 — 정교한
+    # 순수 조회수 집계가 아니라 "이 글이 얼마나 눌려봤는지" 정도의 가벼운 지표).
+    view_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    # 게시판별 카테고리 다중 선택 — ",카테고리1,카테고리2," 형태로 저장해 LIKE로
+    # 필터링한다(content_blocks처럼 JSON을 쓸 수도 있지만, 포함 여부만 필요해서
+    # 이 편이 더 간단하다). None/빈 문자열이면 카테고리 없음.
+    categories: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="community_posts")

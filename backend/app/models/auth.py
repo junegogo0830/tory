@@ -24,6 +24,18 @@ class KakaoWebLoginRequest(BaseModel):
     redirect_uri: str
 
 
+class NaverWebLoginRequest(BaseModel):
+    """네이버 로그인은 웹 리다이렉트 방식만 지원한다(카카오 웹 로그인과 같은
+    패턴) — 프론트가 네이버 인증 서버로 리다이렉트한 뒤 돌려받은 code/state를
+    여기로 보낸다."""
+
+    code: str
+    # CSRF 방지용 — 프론트가 authorize 요청 때 만들어 보낸 값과 정확히 같아야
+    # 한다(네이버가 콜백에 그대로 돌려준다).
+    state: str
+    redirect_uri: str
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

@@ -83,12 +83,19 @@ flutter:
     - assets/logo/login.png
     - assets/logo/community.png
     - assets/logo/nearby_attractions.png
+    - assets/logo/naver_login.png
+    - assets/logo/kakao_login_medium_wide.png
     - assets/highlights/gangneung_namsan.jpg
     - assets/highlights/gogunsan.jpg
     - assets/highlights/gwanmunsa.jpg
     - assets/highlights/gwaneumsa_busan.jpg
     - assets/highlights/seokcheonsa.jpg
     - assets/highlights/yonghwasa.jpg
+    # 챗봇 캐릭터 "훈장님" — 챗봇 화면에만 쓴다.
+    - assets/chat_bot/new_back.png
+    - assets/chat_bot/profile_happy.png
+    - assets/chat_bot/profile_qurious.png
+    - assets/chat_bot/profile_sad.png
 
   fonts:
     - family: Pretendard

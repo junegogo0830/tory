@@ -8,6 +8,7 @@ from ...models.auth import (
     KakaoLoginRequest,
     KakaoWebLoginRequest,
     LoginRequest,
+    NaverWebLoginRequest,
     PhoneVerifiedResponse,
     RefreshRequest,
     SendPhoneCodeRequest,
@@ -18,6 +19,7 @@ from ...models.auth import (
 )
 from ...services.auth import AuthService
 from ...services.kakao_auth import KakaoAuthError
+from ...services.naver_auth import NaverAuthError
 from ...services.phone_verification import PhoneVerificationService
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -94,6 +96,22 @@ async def login_with_kakao_web(
         access_token, refresh_token = await _auth_service.login_with_kakao_code(db, body.code, body.redirect_uri)
     except KakaoAuthError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Kakao authorization code") from exc
+
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/naver/login-web", response_model=TokenResponse)
+async def login_with_naver_web(
+    body: NaverWebLoginRequest, db: AsyncSession = Depends(get_db_session)
+) -> TokenResponse:
+    """카카오 웹 로그인과 같은 구조 — 네이버는 리다이렉트 방식만 제공한다
+    (AuthRepository.completeNaverWebLogin 참고)."""
+    try:
+        access_token, refresh_token = await _auth_service.login_with_naver_code(
+            db, body.code, body.state, body.redirect_uri
+        )
+    except NaverAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Naver authorization code") from exc
 
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 

@@ -50,13 +50,18 @@ abstract final class AppColors {
   static const Color iconChipBg = Color(0xFFF0E7DE);
   static const Color iconChipFg = Color(0xFF60422F);
 
-  // 카테고리 픽토그램 배지 전용 파스텔 팔레트 (docs/DESIGN_SYSTEM.md §1.3 참고).
-  // 카드/화면 배경엔 절대 안 쓴다 — 원형 배지 안 아이콘 배경으로만, 화이트 카드
-  // 위에서 "생기"를 주는 포인트. accent(브랜드색)는 그대로 버튼/선택상태 담당.
-  static const Color pastelSky = Color(0xFFDCECF0); // 둘러보기 / 관광지
-  static const Color pastelPeach = Color(0xFFF3DED2); // 역사 / 문화
-  static const Color pastelMint = Color(0xFFDFECE3); // 산책 / 자연
-  static const Color pastelButter = Color(0xFFEFE6CF); // 미식
-  static const Color pastelLavender = Color(0xFFE6DEEA); // 커뮤니티 / 친구찾기
-  static const Color pastelRose = Color(0xFFF0C9D6); // 타임캡슐 편지
+  // 카테고리 픽토그램 배지 색 — 예전엔 카테고리별로 다른 파스텔(하늘/복숭아/민트 등)을
+  // 썼는데, 톤이 튀어서 전체 베이지 톤과 안 어울린다는 피드백으로 전부 iconChipBg와
+  // 같은 베이지로 통일했다. 이름은 호출부 17곳을 다 바꾸지 않으려고 그대로 뒀다 —
+  // 이제 "파스텔"이 아니라 전부 같은 베이지 값을 가리킨다.
+  static const Color pastelSky = iconChipBg;
+  static const Color pastelPeach = iconChipBg;
+  static const Color pastelMint = iconChipBg;
+  static const Color pastelButter = iconChipBg;
+  static const Color pastelLavender = iconChipBg;
+  static const Color pastelRose = iconChipBg;
+
+  // 챗봇 진입 풍선 전용 강조색 — 베이지 톤 화면 위에서 눈에 띄게 의도적으로
+  // 다른 계열(주황)을 쓴다. 다른 곳엔 쓰지 않는다.
+  static const Color chatbotOrange = Color(0xFFEF7B34);
 }

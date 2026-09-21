@@ -1,4 +1,4 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/utils/image_proxy.dart';
 
 /// 프로필 "사진으로 남긴 추억" — 내가 쓴 글 중 사진이 있는 것만.
 class MyMemory {
@@ -28,7 +28,7 @@ class MyMemory {
       region: json['region'] as String,
       board: json['board'] as String,
       title: json['title'] as String?,
-      photoUrl: '${AppConstants.apiBaseUrl}${json['photo_url'] as String}',
+      photoUrl: resolveStoredImageUrl(json['photo_url'] as String)!,
       caption: json['caption'] as String?,
       memoryYear: json['memory_year'] as int?,
       createdAt: DateTime.parse(json['created_at'] as String),

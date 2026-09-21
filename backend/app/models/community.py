@@ -7,6 +7,16 @@ from pydantic import BaseModel, Field, field_validator
 # "timecapsule"은 reveal_at이 지나기 전엔 내용이 가려지는 특수 게시판이다.
 COMMUNITY_BOARDS = ("free", "memory", "resident", "info", "timecapsule")
 
+# 게시판별 다중 선택 카테고리 — 글쓰기 화면의 태그 버튼과 게시판 목록 화면의
+# 필터 토글이 이 목록을 그대로 쓴다. 순서가 곧 화면에 뜨는 순서다.
+COMMUNITY_POST_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "free": ("취미/여가", "맛집/음식", "친구", "일상", "질문", "고민"),
+    "memory": ("학교", "동네", "가족", "친구", "추억의 장소", "졸업"),
+    "resident": ("생활정보", "부동산", "일자리", "나눔", "동네소식"),
+    "info": ("맛집", "카페", "관광지", "행사", "숙소", "교통"),
+    "timecapsule": ("응원", "고백", "다짐", "추억", "미래에게"),
+}
+
 # 블록 하나당 본문 텍스트 길이 상한(기존 caption 상한과 맞춘다) / 글 하나에 들어갈 수 있는 블록 총 개수 상한.
 MAX_BLOCK_TEXT_LENGTH = 2000
 MAX_CONTENT_BLOCKS = 40
@@ -24,6 +34,8 @@ class CommunityPostResponse(BaseModel):
     id: int
     author_id: int
     author_nickname: str
+    # 작성자가 프로필 사진을 등록 안 했으면 None — 프론트가 기본 아바타로 폴백한다.
+    author_avatar_url: str | None = None
     region: str
     board: str
     title: str | None = None
@@ -35,6 +47,8 @@ class CommunityPostResponse(BaseModel):
     caption: str | None = None
     # 블로그 스타일로 작성된 글만 채워진다. None이면 위 caption/photo_urls로 렌더링하는 옛 글.
     content_blocks: list[ContentBlockResponse] | None = None
+    # 글쓰기 때 고른 카테고리(중복 선택 가능) — COMMUNITY_POST_CATEGORIES[board] 중에서.
+    categories: list[str] = Field(default_factory=list)
     memory_year: int | None = None
     # 타임캡슐 전용. 다른 게시판은 항상 None/True.
     reveal_at: datetime.datetime | None = None
@@ -42,6 +56,9 @@ class CommunityPostResponse(BaseModel):
     # 주민 게시판(중고거래 스타일) 전용 — 다른 게시판은 항상 None.
     price: int | None = None
     trade_status: str | None = None
+    like_count: int = 0
+    comment_count: int = 0
+    view_count: int = 0
     created_at: datetime.datetime
 
 
@@ -103,6 +120,7 @@ class CommentResponse(BaseModel):
     id: int
     author_id: int
     author_nickname: str
+    author_avatar_url: str | None = None
     body: str
     parent_id: int | None = None
     created_at: datetime.datetime
@@ -112,8 +130,6 @@ class CommentResponse(BaseModel):
 class PostDetailResponse(CommunityPostResponse):
     is_mine: bool = False
     liked: bool = False
-    like_count: int = 0
-    comment_count: int = 0
 
 
 class ReportRequest(BaseModel):

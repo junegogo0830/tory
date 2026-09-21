@@ -1,8 +1,10 @@
 import 'package:yetgil_app/shared/widgets/app_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/utils/image_proxy.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../data/models/community_post.dart';
@@ -10,6 +12,7 @@ import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/photo_fallback.dart';
 import '../../../shared/widgets/report_dialog.dart';
+import '../../../shared/widgets/user_avatar.dart';
 import '../../auth/data/auth_providers.dart';
 import '../data/community_providers.dart';
 import '../domain/community_board.dart';
@@ -72,6 +75,14 @@ class _CommunityPostScreenState extends ConsumerState<CommunityPostScreen> {
       )),
     );
     ref.invalidate(communityPreviewProvider(region));
+  }
+
+  Future<void> _share(CommunityPost post) async {
+    final text = post.title ?? post.caption ?? '';
+    await Clipboard.setData(ClipboardData(text: '옛길 — $text'));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('글 내용을 복사했어요')));
+    }
   }
 
   Future<void> _act(Future<void> Function() action) async {
@@ -300,10 +311,30 @@ class _CommunityPostScreenState extends ConsumerState<CommunityPostScreen> {
                           post.title ?? '그 시절의 추억',
                           style: AppTypography.title,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${post.authorNickname} · ${post.createdAt.toLocal().toString().substring(0, 16)}',
-                          style: AppTypography.footnote,
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            UserAvatar(imageUrl: post.authorAvatarUrl, size: 32),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    post.authorNickname,
+                                    style: AppTypography.footnote.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  Text(
+                                    post.createdAt.toLocal().toString().substring(0, 16),
+                                    style: AppTypography.caption.copyWith(color: AppColors.inkTertiary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.remove_red_eye_outlined, size: 15, color: AppColors.inkTertiary),
+                            const SizedBox(width: 3),
+                            Text('${post.viewCount}', style: AppTypography.caption.copyWith(color: AppColors.inkTertiary)),
+                          ],
                         ),
                         if (post.memoryYear != null)
                           Text(
@@ -352,20 +383,30 @@ class _CommunityPostScreenState extends ConsumerState<CommunityPostScreen> {
                             label: const Text('이 장소 둘러보기'),
                           ),
                         const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () => _act(
-                                  () => ref
-                                      .read(communityRepositoryProvider)
-                                      .setLike(post.id, data!['liked'] != true),
-                                ),
-                          icon: Icon(
-                            data!['liked'] == true
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                          ),
-                          label: Text('공감 ${data['like_count']}'),
+                        Row(
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _act(
+                                      () => ref
+                                          .read(communityRepositoryProvider)
+                                          .setLike(post.id, data!['liked'] != true),
+                                    ),
+                              icon: Icon(
+                                data!['liked'] == true
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                              ),
+                              label: Text('공감 ${data['like_count']}'),
+                            ),
+                            const SizedBox(width: 10),
+                            OutlinedButton.icon(
+                              onPressed: () => _share(post),
+                              icon: const Icon(Icons.share_outlined),
+                              label: const Text('공유'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -499,14 +540,18 @@ class _CommentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarPath = comment['author_avatar_url'] as String?;
+    final avatarUrl = resolveStoredImageUrl(avatarPath);
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              UserAvatar(imageUrl: avatarUrl, size: 26),
+              const SizedBox(width: 8),
               Expanded(
-                child: Text(comment['author_nickname'] as String, style: AppTypography.footnote),
+                child: Text(comment['author_nickname'] as String, style: AppTypography.footnote.copyWith(fontWeight: FontWeight.w700)),
               ),
               if (comment['is_mine'] == true)
                 IconButton(

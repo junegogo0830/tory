@@ -17,7 +17,7 @@ async def save_course(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    await _service.save_course(db, user, body.course_type, body.course_id)
+    await _service.save_course(db, user, body.course_type, body.course_id, course=body.course)
 
 
 @router.delete("/{course_type}/{course_id}", status_code=status.HTTP_204_NO_CONTENT)

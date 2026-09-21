@@ -18,3 +18,22 @@ _NON_TOURISM_NAME_MARKERS = (
 
 def looks_non_touristy(name: str) -> bool:
     return any(marker in name for marker in _NON_TOURISM_NAME_MARKERS)
+
+
+# 최초 코스 생성(관광지 전용) 후보에서 식당/카페류를 걸러내는 데 쓴다 — 식사는
+# 코스가 만들어진 뒤 별도 "식사 추가" 플로우(meal_planner.py)에서만 들어간다.
+# TourAPI contenttypeid="39"(음식점)가 가장 확실한 신호라 우선 확인하고,
+# 카테고리 라벨(국문 관광정보 API 매칭 결과)과 구글 Nearby Search의 원본
+# types(관광지 후보에 섞여 들어올 수 있다)도 함께 본다.
+_FOOD_CATEGORY_LABELS = {"음식점", "카페"}
+_FOOD_TOUR_CONTENT_TYPE_IDS = {"39"}
+_FOOD_GOOGLE_TYPES = {"restaurant", "cafe", "bakery", "meal_takeaway", "meal_delivery", "bar"}
+
+
+def is_food_candidate(candidate: dict) -> bool:
+    if candidate.get("content_type_id") in _FOOD_TOUR_CONTENT_TYPE_IDS:
+        return True
+    if candidate.get("category") in _FOOD_CATEGORY_LABELS:
+        return True
+    types = candidate.get("types") or ()
+    return any(t in _FOOD_GOOGLE_TYPES for t in types)

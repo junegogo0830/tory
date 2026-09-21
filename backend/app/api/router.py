@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from .routes import archive, auth, community, community_map, connections, course, custom_course, discovery, health, highlight, image, legal, location, map as map_routes, memory, notifications, profile, roadview, saved_courses, weather
+from .routes import archive, auth, chatbot, community, community_map, connections, course, custom_course, discovery, health, highlight, image, legal, location, map as map_routes, memory, notifications, profile, roadview, saved_courses, weather
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -23,3 +23,4 @@ api_router.include_router(memory.router)
 api_router.include_router(connections.router)
 api_router.include_router(saved_courses.router)
 api_router.include_router(legal.router)
+api_router.include_router(chatbot.router)

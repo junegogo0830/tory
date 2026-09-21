@@ -7,6 +7,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/category_colors.dart';
 import '../../../core/utils/kakao_map_links.dart';
 import '../../../data/models/nearby_place.dart';
+import '../../../data/models/restaurant_candidate.dart';
 import '../../../data/models/tour_course.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -17,24 +18,71 @@ import '../../auth/data/auth_providers.dart';
 import '../../home/data/home_providers.dart';
 import '../../profile/data/profile_providers.dart';
 import '../data/course_providers.dart';
+import 'widgets/meal_candidate_sheet.dart';
+import 'widgets/meal_preference_sheet.dart';
 
-class CourseDetailScreen extends ConsumerWidget {
+class CourseDetailScreen extends ConsumerStatefulWidget {
   const CourseDetailScreen({super.key, required this.courseId});
 
   final String courseId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final courseAsync = ref.watch(courseDetailProvider(courseId));
+  ConsumerState<CourseDetailScreen> createState() => _CourseDetailScreenState();
+}
 
-    return Scaffold(
+class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
+  // 식사 추가/변경/삭제는 서버에 영구 저장되지 않는 화면 전용 결과라(코스
+  // 캐시 방식이 소스마다 달라 id로 다시 못 찾아올 수 있다), provider가 주는
+  // 원본 대신 이 값이 있으면 우선 보여준다.
+  TourCourse? _override;
+
+  // _override가 생긴(이번 방문에서 식사를 추가/변경/삭제한) 뒤 뒤로 나가면,
+  // 저장하지 않으면 사라진다는 걸 한 번은 알려준다 — 매번 뜨면 거슬리니 한
+  // 번 보여준 뒤엔 다시 띄우지 않는다.
+  bool _leaveNoticeShown = false;
+
+  Future<void> _handleBack(BuildContext context) async {
+    if (_override != null && !_leaveNoticeShown) {
+      _leaveNoticeShown = true;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          content: Text(
+            '식당을 저장한 코스는 프로필의 저장된 코스에서 확인할 수 있어요',
+            style: AppTypography.body,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('확인')),
+          ],
+        ),
+      );
+    }
+    if (context.mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final courseAsync = ref.watch(courseDetailProvider(widget.courseId));
+    final currentCourse = _override ?? courseAsync.value;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack(context);
+      },
+      child: Scaffold(
       backgroundColor: AppColors.paper,
       appBar: AppBar(
         title: const Text('코스 상세'),
-        actions: [SaveCourseButton(courseType: 'generated', courseId: courseId)],
+        actions: [
+          if (currentCourse != null)
+            SaveCourseButton(courseType: 'generated', courseId: widget.courseId, course: currentCourse),
+        ],
       ),
       body: courseAsync.when(
-        data: (course) {
+        data: (fetched) {
+          final course = _override ?? fetched;
           if (course == null) {
             return Center(
               child: Text('코스를 찾을 수 없어요', style: AppTypography.subhead),
@@ -141,6 +189,8 @@ class CourseDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
+                _MealSection(course: course, onUpdated: (updated) => setState(() => _override = updated)),
+                const SizedBox(height: 20),
                 _CompleteCourseButton(courseId: course.id),
                 if (course.locationId.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -175,6 +225,107 @@ class CourseDetailScreen extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+      ),
+    );
+  }
+}
+
+const Map<String, String> _mealTypeLabels = {'breakfast': '아침', 'lunch': '점심', 'dinner': '저녁'};
+
+/// "식사를 추가하시겠어요?" — 관광지만으로 만들어진 코스에 실제 식당을 얹는
+/// 진입점. 이미 추가된 식사가 있으면 시간대별로 보여주고 변경/삭제할 수 있다.
+class _MealSection extends ConsumerWidget {
+  const _MealSection({required this.course, required this.onUpdated});
+
+  final TourCourse course;
+  final ValueChanged<TourCourse> onUpdated;
+
+  List<CourseStop> get _mealStops => course.stops.where((s) => s.isMeal).toList();
+
+  Future<void> _addOrChangeMeal(BuildContext context) async {
+    final preference = await showMealPreferenceSheet(context);
+    if (preference == null || !context.mounted) return;
+    final updated = await showMealCandidateSheet(context, course: course, preference: preference);
+    if (updated != null) onUpdated(updated);
+  }
+
+  Future<void> _deleteMeal(BuildContext context, WidgetRef ref, String mealType) async {
+    final meals = [
+      for (final stop in course.stops.where((s) => s.isMeal && s.mealType != mealType))
+        (mealType: stop.mealType!, restaurant: RestaurantCandidate.fromCourseStop(stop)),
+    ];
+    try {
+      final updated = await ref.read(courseRepositoryProvider).insertMeals(course, meals);
+      onUpdated(updated);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('식사를 지우지 못했어요. 다시 시도해주세요.')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mealStops = _mealStops;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (mealStops.isEmpty) ...[
+            Text('식사를 추가하시겠어요?', style: AppTypography.headline),
+            const SizedBox(height: 4),
+            Text(
+              '여행 중 먹고 싶은 식사를 추가해보세요.',
+              style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _addOrChangeMeal(context),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('식사 추가'),
+            ),
+          ] else ...[
+            Text('식사', style: AppTypography.headline),
+            const SizedBox(height: 10),
+            for (final stop in mealStops)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _mealTypeLabels[stop.mealType] ?? stop.mealType ?? '',
+                            style: AppTypography.caption.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w700),
+                          ),
+                          Text(stop.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    TextButton(onPressed: () => _addOrChangeMeal(context), child: const Text('변경')),
+                    TextButton(
+                      onPressed: () => _deleteMeal(context, ref, stop.mealType ?? ''),
+                      child: Text('삭제', style: TextStyle(color: AppColors.inkTertiary)),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 4),
+            Text(
+              '식당을 등록한 후 꼭 저장을 해주세요. 저장하지 않으면 다시 들어왔을 때 사라져요.',
+              style: AppTypography.caption.copyWith(color: AppColors.accentDeep, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _addOrChangeMeal(context),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('다른 식사 추가'),
+            ),
+          ],
+        ],
       ),
     );
   }

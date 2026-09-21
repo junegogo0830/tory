@@ -11,7 +11,7 @@ import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/neighbors_greeting_illustration.dart';
 import '../../auth/data/auth_providers.dart';
-import '../../auth/data/kakao_login_error.dart';
+import '../../auth/presentation/widgets/social_login_buttons.dart';
 import '../../notifications/data/notification_providers.dart';
 import '../data/profile_providers.dart';
 
@@ -96,25 +96,9 @@ class _GuestProfile extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    await ref.read(authStateProvider.notifier).loginWithKakao();
-                    if (!context.mounted) return;
-                    final authState = ref.read(authStateProvider);
-                    final loggedIn = authState.value ?? false;
-                    if (!loggedIn && authState.hasError) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(describeKakaoLoginError(authState.error))),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.chat_bubble),
-                  label: const Text('카카오로 시작하기'),
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFEE500), foregroundColor: Colors.black87),
-                ),
-              ),
+              const NaverLoginButton(),
+              const SizedBox(height: 8),
+              const KakaoLoginButton(),
             ],
           ),
         ),

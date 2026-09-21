@@ -116,16 +116,30 @@ class QuickActionGrid extends ConsumerWidget {
         const SizedBox(height: 10),
         // 목업처럼 화면 좌우 기본 여백만 유지하고(추가 인셋 없이), 원형
         // 아이콘 배지 + 아래 라벨 형태로 4열 x 2행 — 카드 배경/테두리 없이
-        // 아이콘 배지 자체만 파스텔 색으로 채운다.
-        GridView.count(
-          crossAxisCount: 4,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 6,
-          childAspectRatio: 1.05,
-          children: [for (final action in _quickActions) _QuickActionTile(action: action)],
-        ),
+        // 아이콘 배지 자체만 색으로 채운다. 각 항목 사이엔 연한 구분선을 둬
+        // 4개씩 묶여 보이게 한다(가장자리엔 넣지 않는다).
+        _QuickActionRow(actions: _quickActions.sublist(0, 4)),
+        const SizedBox(height: 10),
+        _QuickActionRow(actions: _quickActions.sublist(4, 8)),
+      ],
+    );
+  }
+}
+
+class _QuickActionRow extends ConsumerWidget {
+  const _QuickActionRow({required this.actions});
+
+  final List<_QuickAction> actions;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Row(
+      children: [
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0)
+            Container(width: 1, height: 34, color: AppColors.border),
+          Expanded(child: _QuickActionTile(action: actions[i])),
+        ],
       ],
     );
   }

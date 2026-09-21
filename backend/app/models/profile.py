@@ -2,6 +2,8 @@ import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from .course import CourseResponse
+
 
 class SavedLocationSummary(BaseModel):
     id: str
@@ -79,6 +81,10 @@ class ProfileInfoUpdateRequest(BaseModel):
 class SavedCourseCreateRequest(BaseModel):
     course_type: str = Field(pattern="^(generated|custom)$")
     course_id: str = Field(min_length=1, max_length=50)
+    # generated 타입에서, 화면이 이미 들고 있는 코스(식사 추가처럼 서버 캐시에는
+    # 없는 화면 전용 변경 포함)를 그대로 신뢰해 저장하고 싶을 때 보낸다 — 없으면
+    # 백엔드가 course_id로 다시 조회한 원본을 저장한다.
+    course: CourseResponse | None = None
 
 
 class SavedCourseResponse(BaseModel):

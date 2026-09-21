@@ -160,16 +160,25 @@ class ProfileService:
         db.add(UserCourse(user_id=user.id, course_id=course.id, course_json=course.model_dump_json()))
         await db.commit()
 
-    async def save_course(self, db: AsyncSession, user: User, course_type: str, course_id: str) -> None:
+    async def save_course(
+        self, db: AsyncSession, user: User, course_type: str, course_id: str, course: CourseResponse | None = None
+    ) -> None:
         """코스 북마크. generated는 지금 이 순간의 코스를 스냅샷해둔다(캐시가 나중에
         만료돼도 저장한 내용은 그대로 보이게) — custom은 우리 DB가 소스 오브
-        트루스라 존재 확인만 하고 매번 그때그때 조회한다."""
+        트루스라 존재 확인만 하고 매번 그때그때 조회한다.
+
+        [course]가 오면(화면이 식사 추가처럼 서버 캐시엔 없는 변경을 들고 있을
+        때) id로 다시 조회하지 않고 그 스냅샷을 그대로 믿는다 — 안 그러면
+        방금 추가한 식당이 저장 시점에 사라진다."""
         course_json: str | None = None
         if course_type == "generated":
-            course = await self._recommendation_service.get_course_by_id(course_id)
-            if course is None:
-                raise HTTPException(404, "존재하지 않는 코스예요")
-            course_json = course.model_dump_json()
+            if course is not None:
+                course_json = course.model_dump_json()
+            else:
+                fetched = await self._recommendation_service.get_course_by_id(course_id)
+                if fetched is None:
+                    raise HTTPException(404, "존재하지 않는 코스예요")
+                course_json = fetched.model_dump_json()
         elif course_type == "custom":
             await self._custom_course_service.require_course(db, int(course_id))
         else:

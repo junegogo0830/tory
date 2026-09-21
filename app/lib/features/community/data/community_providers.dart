@@ -12,6 +12,13 @@ final myRegionsProvider = FutureProvider<List<String>>((ref) {
   return repo.myRegions();
 });
 
+/// 게시판별 카테고리 목록(글쓰기 태그 버튼/목록 필터 토글용) — 앱 내내 안 바뀌는
+/// 값이라 한 번만 불러와 캐싱한다.
+final communityPostCategoriesProvider = FutureProvider<Map<String, List<String>>>((ref) {
+  final repo = ref.watch(communityRepositoryProvider);
+  return repo.postCategories();
+});
+
 /// 새 지역 가입 확인 화면용 통계.
 final regionStatsProvider = FutureProvider.family<RegionStats, String>((ref, region) {
   final repo = ref.watch(communityRepositoryProvider);

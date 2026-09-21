@@ -1,4 +1,4 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/utils/image_proxy.dart';
 
 /// 연결 요청 — 수락(status="accepted")돼야 서로 메시지를 주고받을 수 있다.
 /// other* 필드는 서버가 "보는 사람" 기준으로 이미 계산해서 내려준다(내
@@ -41,7 +41,7 @@ class ConnectionRequestModel {
       recipientId: json['recipient_id'] as int,
       otherUserId: json['other_user_id'] as int,
       otherNickname: json['other_nickname'] as String,
-      otherProfileImageUrl: imagePath == null ? null : '${AppConstants.apiBaseUrl}$imagePath',
+      otherProfileImageUrl: resolveStoredImageUrl(imagePath),
       isRequester: json['is_requester'] as bool,
       message: json['message'] as String?,
       status: json['status'] as String,

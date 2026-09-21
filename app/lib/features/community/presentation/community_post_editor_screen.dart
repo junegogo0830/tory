@@ -72,6 +72,7 @@ class _CommunityPostEditorScreenState extends ConsumerState<CommunityPostEditorS
   String _tradeStatus = tradeStatuses.first;
   bool _isTrade = true;
   bool _submitting = false;
+  final Set<String> _selectedCategories = {};
 
   Timer? _placeDebounce;
   bool _searchingPlace = false;
@@ -234,6 +235,7 @@ class _CommunityPostEditorScreenState extends ConsumerState<CommunityPostEditorS
             tradeStatus: isTrade ? _tradeStatus : null,
             isTrade: isTrade,
             contentBlocks: jsonEncode(resolved.blocks),
+            categories: _selectedCategories.toList(),
           );
       ref.invalidate(profileProvider);
       ref.invalidate(communityFeedProvider((region: widget.args.region, board: board.id)));
@@ -255,6 +257,7 @@ class _CommunityPostEditorScreenState extends ConsumerState<CommunityPostEditorS
   @override
   Widget build(BuildContext context) {
     final board = widget.args.board;
+    final categoryOptions = ref.watch(communityPostCategoriesProvider).value?[board.id] ?? const [];
     return Scaffold(
       backgroundColor: AppColors.paper,
       appBar: AppBar(
@@ -290,6 +293,25 @@ class _CommunityPostEditorScreenState extends ConsumerState<CommunityPostEditorS
                   decoration: const InputDecoration(hintText: '제목', border: InputBorder.none, counterText: ''),
                 ),
                 const Divider(height: 24),
+                if (categoryOptions.isNotEmpty) ...[
+                  Text('카테고리 (중복 선택 가능)', style: AppTypography.footnote.copyWith(color: AppColors.inkSecondary)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final category in categoryOptions)
+                        _CategoryChip(
+                          label: category,
+                          selected: _selectedCategories.contains(category),
+                          onTap: () => setState(() {
+                            if (!_selectedCategories.remove(category)) _selectedCategories.add(category);
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (board.isTradeBoard) ...[
                   SegmentedButton<bool>(
                     segments: const [
@@ -472,6 +494,37 @@ class _CommunityPostEditorScreenState extends ConsumerState<CommunityPostEditorS
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(99),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.fieldBg,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: selected ? AppColors.accent : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.footnote.copyWith(
+            color: selected ? Colors.white : AppColors.inkSecondary,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),

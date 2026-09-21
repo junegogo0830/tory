@@ -14,6 +14,7 @@ from ..core.security import (
 from ..db.models import User
 from ..models.auth import SignupRequest
 from .kakao_auth import KakaoAuthService
+from .naver_auth import NaverAuthService
 from .phone_verification import PhoneVerificationService
 
 
@@ -21,9 +22,11 @@ class AuthService:
     def __init__(
         self,
         kakao_auth_service: KakaoAuthService | None = None,
+        naver_auth_service: NaverAuthService | None = None,
         phone_verification_service: PhoneVerificationService | None = None,
     ) -> None:
         self._kakao_auth_service = kakao_auth_service or KakaoAuthService()
+        self._naver_auth_service = naver_auth_service or NaverAuthService()
         self._phone_verification_service = phone_verification_service or PhoneVerificationService()
 
     async def is_username_available(self, db: AsyncSession, username: str) -> bool:
@@ -105,6 +108,35 @@ class AuthService:
         if user is None:
             user = User(
                 kakao_id=profile.kakao_id,
+                nickname=profile.nickname,
+                profile_image_url=profile.profile_image_url,
+            )
+            db.add(user)
+        else:
+            user.nickname = profile.nickname
+            user.profile_image_url = profile.profile_image_url
+
+        await db.commit()
+        await db.refresh(user)
+
+        return create_access_token(user.id), create_refresh_token(user.id)
+
+    async def login_with_naver_code(self, db: AsyncSession, code: str, state: str, redirect_uri: str) -> tuple[str, str]:
+        """웹 로그인 전용 — authorization code를 네이버 액세스 토큰으로 먼저
+        교환한 뒤, login_with_naver로 이어간다(login_with_kakao_code와 같은 구조)."""
+        access_token = await self._naver_auth_service.exchange_code_for_token(code, state, redirect_uri)
+        return await self.login_with_naver(db, access_token)
+
+    async def login_with_naver(self, db: AsyncSession, naver_access_token: str) -> tuple[str, str]:
+        """네이버 액세스 토큰을 검증하고, 유저를 upsert한 뒤 옛길 자체 JWT 쌍을 발급한다."""
+        profile = await self._naver_auth_service.fetch_profile(naver_access_token)
+
+        result = await db.execute(select(User).where(User.naver_id == profile.naver_id))
+        user = result.scalar_one_or_none()
+
+        if user is None:
+            user = User(
+                naver_id=profile.naver_id,
                 nickname=profile.nickname,
                 profile_image_url=profile.profile_image_url,
             )

@@ -7,6 +7,7 @@ from ...db.models import User
 from ...db.postgres import get_db_session
 from ...models.community import (
     COMMUNITY_BOARDS,
+    COMMUNITY_POST_CATEGORIES,
     BlockedUserResponse,
     CommunityPostResponse,
     HomeRegionRequest,
@@ -77,6 +78,7 @@ async def list_posts(
     limit: int = Query(20, ge=1, le=50),
     offset: int = Query(0, ge=0),
     query: str = Query("", max_length=100),
+    category: str | None = Query(None),
     user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[CommunityPostResponse]:
@@ -87,9 +89,16 @@ async def list_posts(
         board=board,
         limit=limit,
         offset=offset,
+        category=category,
         viewer_id=user.id if user else None,
         **({"query": query.strip()} if query.strip() else {}),
     )
+
+
+@router.get("/posts/categories", response_model=dict[str, list[str]])
+async def post_categories() -> dict[str, list[str]]:
+    """게시판별 카테고리 목록 — 글쓰기 태그 버튼/목록 필터 토글이 이 값을 그대로 쓴다."""
+    return {board: list(values) for board, values in COMMUNITY_POST_CATEGORIES.items()}
 
 
 @router.post("/posts", response_model=CommunityPostResponse)
@@ -105,6 +114,7 @@ async def create_post(
     trade_status: str | None = Form(None),
     is_trade: bool = Form(True),
     content_blocks: str | None = Form(None),
+    categories: str | None = Form(None),
     files: list[UploadFile] = File(default_factory=list),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -125,6 +135,7 @@ async def create_post(
         trade_status=trade_status,
         is_trade=is_trade,
         content_blocks=content_blocks,
+        categories=categories,
     )
 
 

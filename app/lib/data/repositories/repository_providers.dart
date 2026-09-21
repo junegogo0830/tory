@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import 'archive_repository.dart';
+import 'chatbot_repository.dart';
 import 'community_repository.dart';
 import 'connection_repository.dart';
 import 'course_repository.dart';
@@ -61,4 +62,8 @@ final connectionRepositoryProvider = Provider<ConnectionRepository>((ref) {
 
 final savedCourseRepositoryProvider = Provider<SavedCourseRepository>((ref) {
   return SavedCourseRepository(ref.watch(apiClientProvider));
+});
+
+final chatbotRepositoryProvider = Provider<ChatbotRepository>((ref) {
+  return ChatbotRepository(ref.watch(apiClientProvider));
 });

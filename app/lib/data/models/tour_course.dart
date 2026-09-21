@@ -12,6 +12,8 @@ class CourseStop {
     this.imageUrl,
     this.photoAttributionName,
     this.photoAttributionUrl,
+    this.isMeal = false,
+    this.mealType,
   });
 
   final String name;
@@ -27,6 +29,11 @@ class CourseStop {
   // 보여줄 땐 기여자 출처 표기를 같이 보여줘야 한다.
   final String? photoAttributionName;
   final String? photoAttributionUrl;
+  // "식사 추가" 플로우로 삽입된 정류지인지 — true면 화면에서 변경/삭제
+  // 액션을 보여준다. 처음 생성된 관광 코스의 정류지는 항상 false.
+  final bool isMeal;
+  // 'breakfast' | 'lunch' | 'dinner' — isMeal일 때만 채워진다.
+  final String? mealType;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
@@ -42,8 +49,25 @@ class CourseStop {
       imageUrl: json['image_url'] as String?,
       photoAttributionName: json['photo_attribution_name'] as String?,
       photoAttributionUrl: json['photo_attribution_url'] as String?,
+      isMeal: json['is_meal'] as bool? ?? false,
+      mealType: json['meal_type'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'source': source,
+        'latitude': latitude,
+        'longitude': longitude,
+        'category': category,
+        'address': address,
+        'stay_minutes': stayMinutes,
+        'image_url': imageUrl,
+        'photo_attribution_name': photoAttributionName,
+        'photo_attribution_url': photoAttributionUrl,
+        'is_meal': isMeal,
+        'meal_type': mealType,
+      };
 }
 
 /// 감성분석 점수 기반 추천 관광 코스.
@@ -104,4 +128,37 @@ class TourCourse {
       notes: (json['notes'] as List? ?? []).cast<String>(),
     );
   }
+
+  /// 식사 추가 플로우가 코스를 그대로 백엔드에 되실어 보낼 때 쓴다 — 백엔드가
+  /// id만으로 코스를 다시 찾지 않고(코스 종류마다 캐시 방식이 달라 항상
+  /// 되찾아지는 게 아니다), 화면에 이미 있는 전체 코스를 값으로 신뢰한다.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'sentiment_score': sentimentScore,
+        'stops': stops.map((s) => s.toJson()).toList(),
+        'duration_label': durationLabel,
+        'category': category,
+        'image_url': imageUrl,
+        'location_id': locationId,
+        'weather_label': weatherLabel,
+        'estimated_distance_km': distanceKm,
+        'notes': notes,
+      };
+
+  TourCourse copyWith({List<CourseStop>? stops, double? distanceKm}) => TourCourse(
+        id: id,
+        title: title,
+        description: description,
+        sentimentScore: sentimentScore,
+        stops: stops ?? this.stops,
+        durationLabel: durationLabel,
+        category: category,
+        imageUrl: imageUrl,
+        locationId: locationId,
+        weatherLabel: weatherLabel,
+        distanceKm: distanceKm ?? this.distanceKm,
+        notes: notes,
+      );
 }

@@ -1,4 +1,4 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/utils/image_proxy.dart';
 
 /// 추억 조건이 겹치는 사람 하나 — 친구 찾기 검색 결과와 코스의 "겹치는 사람"
 /// 목록이 둘 다 이 모양을 쓴다.
@@ -22,7 +22,7 @@ class MemoryMatch {
     return MemoryMatch(
       userId: json['user_id'] as int,
       nickname: json['nickname'] as String,
-      profileImageUrl: imagePath == null ? null : '${AppConstants.apiBaseUrl}$imagePath',
+      profileImageUrl: resolveStoredImageUrl(imagePath),
       score: json['score'] as int,
       reasons: (json['reasons'] as List).cast<String>(),
     );

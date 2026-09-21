@@ -14,7 +14,7 @@ import '../../../shared/widgets/photo_fallback.dart';
 import '../../../shared/widgets/region_select_sheet.dart';
 import '../../../shared/widgets/yetgil_mark.dart';
 import '../../auth/data/auth_providers.dart';
-import '../../auth/data/kakao_login_error.dart';
+import '../../auth/presentation/widgets/social_login_buttons.dart';
 import '../../profile/data/profile_providers.dart';
 import '../data/community_providers.dart';
 import '../domain/community_board.dart';
@@ -189,7 +189,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   }
 }
 
-/// 카카오 로그인 배너 + "게스트로 입장" — 비회원도 커뮤니티를 구경할 수 있게 한다.
+/// 네이버 로그인 배너 + "게스트로 입장" — 비회원도 커뮤니티를 구경할 수 있게 한다.
 class _LoginOrGuestCard extends ConsumerWidget {
   const _LoginOrGuestCard({required this.onGuest});
 
@@ -222,27 +222,9 @@ class _LoginOrGuestCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                await ref.read(authStateProvider.notifier).loginWithKakao();
-                if (!context.mounted) return;
-                final authState = ref.read(authStateProvider);
-                if (authState.value != true && authState.hasError) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(describeKakaoLoginError(authState.error))),
-                  );
-                }
-              },
-              icon: const Icon(Icons.chat_bubble),
-              label: const Text('카카오로 시작하기'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFEE500),
-                foregroundColor: Colors.black87,
-              ),
-            ),
-          ),
+          const NaverLoginButton(),
+          const SizedBox(height: 8),
+          const KakaoLoginButton(),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,

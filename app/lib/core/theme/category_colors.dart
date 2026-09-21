@@ -34,7 +34,7 @@ Color pastelForFoodCategory(String category) {
   if (category.contains('양식') || category.contains('피자') || category.contains('패스트푸드')) {
     return AppColors.pastelMint;
   }
-  return AppColors.accentTint;
+  return AppColors.iconChipBg;
 }
 
 /// 카카오맵 맛집 카테고리를 훨씬 더 세분화한 이모지로 매핑한다. [iconForFoodCategory]가

@@ -5,9 +5,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../data/auth_error.dart';
 import '../data/auth_providers.dart';
-import '../data/kakao_login_error.dart';
+import 'widgets/social_login_buttons.dart';
 
-/// 아이디/비밀번호 로그인 화면. 카카오 로그인도 대안으로 남겨둔다.
+/// 아이디/비밀번호 로그인 화면. 네이버 로그인도 대안으로 남겨둔다.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -43,19 +43,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context.go('/');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(describeAuthError(authState.error))));
-    }
-  }
-
-  Future<void> _loginWithKakao() async {
-    await ref.read(authStateProvider.notifier).loginWithKakao();
-    if (!mounted) return;
-    final authState = ref.read(authStateProvider);
-    if (authState.value == true) {
-      context.go('/');
-    } else if (authState.hasError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(describeKakaoLoginError(authState.error))),
-      );
     }
   }
 
@@ -115,18 +102,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _loginWithKakao,
-                    icon: const Icon(Icons.chat_bubble),
-                    label: const Text('카카오로 시작하기'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFEE500),
-                      foregroundColor: Colors.black87,
-                    ),
-                  ),
-                ),
+                NaverLoginButton(onLoggedIn: () => context.go('/')),
+                const SizedBox(height: 10),
+                KakaoLoginButton(onLoggedIn: () => context.go('/')),
               ],
             ),
           ),

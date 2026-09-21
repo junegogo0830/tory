@@ -18,6 +18,7 @@ from ..db.models import (
     UserBlock,
 )
 from ..models.community import (
+    COMMUNITY_POST_CATEGORIES,
     MAX_BLOCK_TEXT_LENGTH,
     MAX_CONTENT_BLOCKS,
     TRADE_STATUSES,
@@ -125,6 +126,7 @@ class CommunityService:
         trade_status: str | None = None,
         is_trade: bool = True,
         content_blocks: str | None = None,
+        categories: str | None = None,
     ) -> CommunityPostResponse:
         region = region.strip()
         title, caption = (title or '').strip(), (caption or '').strip()
@@ -181,6 +183,7 @@ class CommunityService:
             photo_path=photo_paths[0] if photo_paths else None,
             caption=caption,
             content_blocks=json.dumps(parsed_blocks) if parsed_blocks is not None else None,
+            categories=self._parse_categories(categories, board=board),
             memory_year=memory_year,
             reveal_at=reveal_at,
             price=price,
@@ -192,8 +195,30 @@ class CommunityService:
             db.add(CommunityPostPhoto(post_id=post.id, photo_path=path, position=position))
         await db.commit()
         await db.refresh(post)
-        photo_urls = [f"/uploads/community/{p}" for p in photo_paths]
-        return self._to_response(post, author_nickname=user.nickname, photo_urls=photo_urls)
+        # _save_photo(save_uploaded_photo)가 이미 완성된 접근 가능한 경로/URL을
+        # 돌려준다(로컬 디스크면 "/uploads/community/xxx", GCS면
+        # "https://storage.googleapis.com/..." 전체 URL) — 여기서 또
+        # "/uploads/community/"를 덧붙이면 GCS 배포 환경에서 URL 앞에 그
+        # 접두어가 또 붙어 깨진 경로가 된다(실제로 이 버그로 커뮤니티 사진이
+        # 기본 이미지로만 보였다).
+        photo_urls = list(photo_paths)
+        return self._to_response(
+            post, author_nickname=user.nickname, author_avatar_url=user.profile_image_url, photo_urls=photo_urls
+        )
+
+    @staticmethod
+    def _counts_columns():
+        """목록 조회용 좋아요/댓글 수 — 글마다 따로 쿼리하지 않고 상관 서브쿼리로
+        한 번에 가져온다(페이지당 최대 50개라 이 정도 규모에서는 충분히 가볍다)."""
+        likes = (
+            select(func.count()).select_from(CommunityLike)
+            .where(CommunityLike.post_id == CommunityPost.id).correlate(CommunityPost).scalar_subquery()
+        )
+        comments = (
+            select(func.count()).select_from(CommunityComment)
+            .where(CommunityComment.post_id == CommunityPost.id).correlate(CommunityPost).scalar_subquery()
+        )
+        return likes, comments
 
     async def list_posts(
         self,
@@ -204,6 +229,7 @@ class CommunityService:
         limit: int = 20,
         offset: int = 0,
         query: str = "",
+        category: str | None = None,
         viewer_id: int | None = None,
     ) -> list[CommunityPostResponse]:
         """region이 None이면 로그인/지역 선택 없이도 볼 수 있는 "전체" 피드다 —
@@ -213,8 +239,11 @@ class CommunityService:
         conditions = [CommunityPost.board == board, CommunityPost.hidden.is_(False)]
         if region is not None:
             conditions.append(CommunityPost.region == region)
+        if category:
+            conditions.append(CommunityPost.categories.ilike(f"%,{category},%"))
+        likes_count, comments_count = self._counts_columns()
         stmt = (
-            select(CommunityPost, User.nickname)
+            select(CommunityPost, User.nickname, User.profile_image_url, likes_count, comments_count)
             .join(User, User.id == CommunityPost.user_id)
             .where(*conditions)
             .where(CommunityPost.title.icontains(query, autoescape=True) | CommunityPost.caption.icontains(query, autoescape=True) if query else True)
@@ -224,7 +253,10 @@ class CommunityService:
         result = await db.execute(
             stmt.order_by(desc(CommunityPost.created_at), desc(CommunityPost.id)).limit(limit).offset(offset)
         )
-        return [self._to_response(post, author_nickname=nickname) for post, nickname in result.all()]
+        return [
+            self._to_response(post, author_nickname=nickname, author_avatar_url=avatar, like_count=likes, comment_count=comments)
+            for post, nickname, avatar, likes, comments in result.all()
+        ]
 
     async def list_posts_by_user(
         self,
@@ -247,15 +279,46 @@ class CommunityService:
         conditions = [CommunityPost.user_id == author_id, CommunityPost.hidden.is_(False)]
         if region is not None:
             conditions.append(CommunityPost.region == region)
+        likes_count, comments_count = self._counts_columns()
         stmt = (
-            select(CommunityPost)
+            select(CommunityPost, likes_count, comments_count)
             .where(*conditions)
             .order_by(desc(CommunityPost.created_at), desc(CommunityPost.id))
             .limit(limit)
             .offset(offset)
         )
         rows = await db.execute(stmt)
-        return [self._to_response(post, author_nickname=author.nickname) for post in rows.scalars().all()]
+        return [
+            self._to_response(
+                post, author_nickname=author.nickname, author_avatar_url=author.profile_image_url,
+                like_count=likes, comment_count=comments,
+            )
+            for post, likes, comments in rows.all()
+        ]
+
+    @staticmethod
+    def _parse_categories(raw: str | None, *, board: str) -> str | None:
+        """글쓰기에서 고른 카테고리(JSON 문자열 배열)를 그 게시판에 실제로 있는
+        값만 걸러 ",카테고리1,카테고리2," 형태로 인코딩한다. 알 수 없는 값은
+        조용히 버린다 — 프론트가 오래된 카테고리 목록을 캐싱해 보내는 경우를
+        대비한 방어적 처리라 에러를 낼 정도는 아니다."""
+        if raw is None or not raw.strip():
+            return None
+        try:
+            values = json.loads(raw)
+        except ValueError:
+            raise HTTPException(422, '카테고리 형식이 올바르지 않아요') from None
+        if not isinstance(values, list):
+            raise HTTPException(422, '카테고리 형식이 올바르지 않아요')
+        allowed = COMMUNITY_POST_CATEGORIES.get(board, ())
+        picked = [v for v in dict.fromkeys(values) if v in allowed]
+        return f",{','.join(picked)}," if picked else None
+
+    @staticmethod
+    def _decode_categories(raw: str | None) -> list[str]:
+        if not raw:
+            return []
+        return [c for c in raw.strip(',').split(',') if c]
 
     @staticmethod
     def _parse_content_blocks(raw: str | None, *, photo_count: int) -> list[dict] | None:
@@ -321,9 +384,16 @@ class CommunityService:
 
     @staticmethod
     def _to_response(
-        post: CommunityPost, *, author_nickname: str, photo_urls: list[str] | None = None
+        post: CommunityPost,
+        *,
+        author_nickname: str,
+        author_avatar_url: str | None = None,
+        photo_urls: list[str] | None = None,
+        like_count: int = 0,
+        comment_count: int = 0,
     ) -> CommunityPostResponse:
-        cover = f"/uploads/community/{post.photo_path}" if post.photo_path else None
+        # post.photo_path도 이미 완성된 경로/URL이 저장돼 있다(위 create_post 참고).
+        cover = post.photo_path if post.photo_path else None
         urls = photo_urls if photo_urls is not None else ([cover] if cover else [])
         # 타임캡슐은 reveal_at이 지나기 전까지 내용을 가린다 — 제목/내용/사진을
         # 아예 빼서 클라이언트가 실수로라도 못 읽게 한다("잠긴 카드처럼 보이게만"
@@ -340,6 +410,7 @@ class CommunityService:
             id=post.id,
             author_id=post.user_id,
             author_nickname=author_nickname,
+            author_avatar_url=author_avatar_url,
             region=post.region,
             board=post.board,
             title=post.title if revealed else None,
@@ -348,11 +419,15 @@ class CommunityService:
             photo_urls=urls if revealed else [],
             caption=post.caption if revealed else None,
             content_blocks=content_blocks,
+            categories=CommunityService._decode_categories(post.categories) if revealed else [],
             memory_year=post.memory_year if revealed else None,
             reveal_at=post.reveal_at,
             revealed=revealed,
             price=post.price if revealed else None,
             trade_status=post.trade_status if revealed else None,
+            like_count=like_count,
+            comment_count=comment_count,
+            view_count=post.view_count or 0,
             created_at=post.created_at,
         )
 
@@ -362,7 +437,8 @@ class CommunityService:
             .where(CommunityPostPhoto.post_id == post_id)
             .order_by(CommunityPostPhoto.position)
         )
-        return [f"/uploads/community/{path}" for (path,) in rows.all()]
+        # CommunityPostPhoto.photo_path도 이미 완성된 경로/URL이 저장돼 있다.
+        return [path for (path,) in rows.all()]
 
 
     async def _post(self, db, post_id):
@@ -381,8 +457,13 @@ class CommunityService:
         comments = await db.scalar(select(func.count()).select_from(CommunityComment).where(CommunityComment.post_id == post_id))
         liked = user is not None and await db.get(CommunityLike, (post_id, user.id)) is not None
         photo_urls = await self._photo_urls(db, post_id)
-        response = self._to_response(post, author_nickname=author.nickname, photo_urls=photo_urls)
-        return PostDetailResponse(**response.model_dump(), is_mine=user is not None and user.id == post.user_id, liked=liked, like_count=likes, comment_count=comments)
+        post.view_count += 1
+        await db.commit()
+        response = self._to_response(
+            post, author_nickname=author.nickname, author_avatar_url=author.profile_image_url,
+            photo_urls=photo_urls, like_count=likes, comment_count=comments,
+        )
+        return PostDetailResponse(**response.model_dump(), is_mine=user is not None and user.id == post.user_id, liked=liked)
 
     async def update(self, db, post_id, user, body):
         post = await self._post(db, post_id)
@@ -420,14 +501,20 @@ class CommunityService:
         await self._post(db, post_id)
         blocked = await self._blocked_ids(db, user.id if user else None)
         stmt = (
-            select(CommunityComment, User.nickname)
+            select(CommunityComment, User.nickname, User.profile_image_url)
             .join(User, User.id == CommunityComment.user_id)
             .where(CommunityComment.post_id == post_id, CommunityComment.hidden.is_(False))
         )
         if blocked:
             stmt = stmt.where(CommunityComment.user_id.not_in(blocked))
         rows = await db.execute(stmt.order_by(CommunityComment.id).offset(offset).limit(30))
-        return [CommentResponse(id=c.id, author_id=c.user_id, author_nickname=n, body=c.body, parent_id=c.parent_id, created_at=c.created_at, is_mine=user is not None and c.user_id == user.id) for c,n in rows]
+        return [
+            CommentResponse(
+                id=c.id, author_id=c.user_id, author_nickname=n, author_avatar_url=avatar, body=c.body,
+                parent_id=c.parent_id, created_at=c.created_at, is_mine=user is not None and c.user_id == user.id,
+            )
+            for c, n, avatar in rows
+        ]
 
     async def add_comment(self, db, post_id, user, body, parent_id=None):
         post = await self._post(db, post_id)
@@ -454,7 +541,8 @@ class CommunityService:
                     db, post=post, actor=user, comment_id=comment.id, reply_to=reply_author
                 )
         return CommentResponse(
-            id=comment.id, author_id=user.id, author_nickname=user.nickname, body=comment.body,
+            id=comment.id, author_id=user.id, author_nickname=user.nickname,
+            author_avatar_url=user.profile_image_url, body=comment.body,
             parent_id=comment.parent_id, created_at=comment.created_at, is_mine=True,
         )
 
@@ -573,8 +661,9 @@ class CommunityService:
         그보다 많아질 일은 당분간 없고, 있더라도 타임라인은 "쭉 훑어보는" 화면이라
         더보기 버튼을 넣는 게 오히려 몰입을 깬다."""
         blocked = await self._blocked_ids(db, viewer_id)
+        likes_count, comments_count = self._counts_columns()
         stmt = (
-            select(CommunityPost, User.nickname)
+            select(CommunityPost, User.nickname, User.profile_image_url, likes_count, comments_count)
             .join(User, User.id == CommunityPost.user_id)
             .where(CommunityPost.region == region, CommunityPost.board == board, CommunityPost.hidden.is_(False))
         )
@@ -584,7 +673,10 @@ class CommunityService:
             CommunityPost.memory_year.is_(None), CommunityPost.memory_year.asc(), CommunityPost.created_at.asc()
         ).limit(200)
         result = await db.execute(stmt)
-        return [self._to_response(post, author_nickname=nickname) for post, nickname in result.all()]
+        return [
+            self._to_response(post, author_nickname=nickname, author_avatar_url=avatar, like_count=likes, comment_count=comments)
+            for post, nickname, avatar, likes, comments in result.all()
+        ]
 
     # -- 모교 커뮤니티(동창찾기) -------------------------------------------------
 

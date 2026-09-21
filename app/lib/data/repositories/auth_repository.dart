@@ -1,9 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:kakao_flutter_sdk_auth/kakao_flutter_sdk_auth.dart' as kakao_auth;
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' as kakao;
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../api/api_client.dart';
 import '../local/token_storage.dart';
+
+/// 네이버 콜백을 카카오 콜백과 구분하는 state 접두어 — 네이버는 카카오와 달리
+/// state를 돌려받으므로, main.dart가 이 접두어로 "지금 돌아온 code가 어느
+/// 제공자 것인지" 구분한다. 요청별 실제 무작위값이 아니라 고정 접두어 + 타임스탬프인
+/// 건, 이 앱이 풀페이지 리다이렉트라 브라우저 저장소 없이는 원래 값을 들고 있을
+/// 수 없어 카카오 로그인처럼 완전한 CSRF 검증까지는 하지 않기 때문이다.
+const String naverStatePrefix = 'naverlogin-';
 
 class AuthRepository {
   AuthRepository(this._apiClient, this._tokenStorage);
@@ -55,6 +64,30 @@ class AuthRepository {
   /// 읽어 호출한다).
   Future<void> completeKakaoWebLogin(String code) async {
     await _exchangeAndSave('/api/auth/kakao/login-web', {'code': code, 'redirect_uri': webRedirectUri});
+  }
+
+  /// 네이버 인증 서버로 전체 페이지 리다이렉트한다(카카오 웹 로그인과 같은
+  /// 패턴) — 네이버는 카카오와 달리 Flutter SDK 자체가 없어 url_launcher로
+  /// 직접 authorize URL을 열고 돌아오는 건 [completeNaverWebLogin]이 받는다.
+  Future<void> loginWithNaver() async {
+    final state = '$naverStatePrefix${DateTime.now().millisecondsSinceEpoch}';
+    final authorizeUri = Uri.https('nid.naver.com', '/oauth2.0/authorize', {
+      'response_type': 'code',
+      'client_id': AppConstants.naverClientId,
+      'redirect_uri': webRedirectUri,
+      'state': state,
+    });
+    await launchUrl(authorizeUri, webOnlyWindowName: '_self');
+  }
+
+  /// 웹 전용 — 네이버 인증 서버가 [webRedirectUri]로 돌려보낸 `?code=&state=`를
+  /// 백엔드로 보내 옛길 자체 JWT로 교환한다(main.dart가 앱 시작 시 읽어 호출한다).
+  Future<void> completeNaverWebLogin(String code, String state) async {
+    await _exchangeAndSave('/api/auth/naver/login-web', {
+      'code': code,
+      'state': state,
+      'redirect_uri': webRedirectUri,
+    });
   }
 
   Future<void> _exchangeAndSave(String path, Map<String, dynamic> data) async {

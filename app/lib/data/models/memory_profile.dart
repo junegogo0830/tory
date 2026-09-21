@@ -1,4 +1,4 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/utils/image_proxy.dart';
 import 'memory_attribute.dart';
 
 /// "추억 프로필" — 본인이면 속성 편집이, 타인이면 연결 상태에 따른 액션이 갈린다.
@@ -31,7 +31,7 @@ class MemoryProfile {
     return MemoryProfile(
       userId: json['user_id'] as int,
       nickname: json['nickname'] as String,
-      profileImageUrl: imagePath == null ? null : '${AppConstants.apiBaseUrl}$imagePath',
+      profileImageUrl: resolveStoredImageUrl(imagePath),
       attributes: (json['attributes'] as List)
           .map((a) => MemoryAttribute.fromJson(a as Map<String, dynamic>))
           .toList(),

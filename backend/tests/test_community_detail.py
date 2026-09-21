@@ -1,8 +1,9 @@
+import io
 import os
 import uuid
 import pytest
 import pytest_asyncio
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import text
 from app.core.config import settings
@@ -54,6 +55,38 @@ async def test_post_comment_like_ownership_and_cascade(db):
     await service.remove(db,post.id,author)
     with pytest.raises(HTTPException): await service.detail(db,post.id)
     assert (await db.execute(text('SELECT count(*) FROM community_comments'))).scalar()==0
+
+
+@pytest.mark.asyncio
+async def test_photo_url_not_double_prefixed_when_already_a_full_url(db, monkeypatch):
+    """save_uploaded_photo는 GCS 배포 환경(gcs_bucket_name 설정됨)에서 이미
+    완성된 절대 URL(https://storage.googleapis.com/...)을 돌려준다 — 그런데
+    한때 create_post/_to_response/_photo_urls가 그 값 앞에 또
+    "/uploads/community/"를 덧붙여, 실제 배포에서 업로드한 사진이 깨진
+    경로가 되는 바람에 기본 이미지로만 보이는 버그가 있었다. 글쓰기 직후
+    응답과 상세 조회(detail) 양쪽 다 원래 URL 그대로 나오는지 확인한다."""
+    fake_url = "https://storage.googleapis.com/fake-bucket/community/abc123.jpg"
+
+    async def _fake_save_photo(self, file):  # noqa: ARG001
+        return fake_url
+
+    monkeypatch.setattr(CommunityService, "_save_photo", _fake_save_photo)
+
+    service = CommunityService()
+    author = User(kakao_id="photo-author", nickname="작성자")
+    db.add(author)
+    await db.commit()
+
+    upload = UploadFile(filename="photo.jpg", file=io.BytesIO(b"fake-bytes"))
+    created = await service.create_post(
+        db, author, region="서울 종로구", board="free", title="사진 테스트", caption="본문", files=[upload]
+    )
+    assert created.photo_url == fake_url
+    assert created.photo_urls == [fake_url]
+
+    detail = await service.detail(db, created.id)
+    assert detail.photo_url == fake_url
+    assert detail.photo_urls == [fake_url]
 
 
 @pytest.mark.asyncio

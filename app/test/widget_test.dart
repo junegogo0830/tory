@@ -6,6 +6,7 @@ import 'package:yetgil_app/core/theme/app_theme.dart';
 import 'package:yetgil_app/core/utils/image_proxy.dart';
 import 'package:yetgil_app/core/constants/app_constants.dart';
 import 'package:yetgil_app/data/api/api_client.dart';
+import 'package:yetgil_app/data/models/community_post.dart';
 import 'package:yetgil_app/data/models/hometown_location.dart';
 import 'package:yetgil_app/data/models/tour_course.dart';
 import 'package:yetgil_app/data/repositories/location_repository.dart';
@@ -55,6 +56,40 @@ void main() {
       '${AppConstants.apiBaseUrl}/uploads/community/photo.jpg',
     );
     expect(resolveImageUrl(resolveImageUrl(url)), resolveImageUrl(url));
+  });
+  test('resolveStoredImageUrl은 이미 완성된 절대 URL 앞에 apiBaseUrl을 또 붙이지 않는다', () {
+    // 운영 배포(GCS 저장)에서는 백엔드가 상대경로가 아니라 이미 완성된
+    // "https://storage.googleapis.com/..." URL을 photo_url로 내려준다 —
+    // 예전엔 이 값 앞에도 무조건 apiBaseUrl을 붙여
+    // "https://백엔드주소https://storage.googleapis.com/..." 같은 깨진 주소가
+    // 됐다(커뮤니티 게시글 사진이 기본 이미지로만 보이던 실제 원인).
+    const gcsUrl = 'https://storage.googleapis.com/bucket/community/photo.jpg';
+    expect(resolveStoredImageUrl(gcsUrl), gcsUrl);
+    expect(
+      resolveStoredImageUrl('/uploads/community/photo.jpg'),
+      '${AppConstants.apiBaseUrl}/uploads/community/photo.jpg',
+    );
+    expect(resolveStoredImageUrl(null), null);
+  });
+  test('CommunityPost.fromJson이 절대 URL 사진/아바타를 깨뜨리지 않는다', () {
+    const gcsUrl = 'https://storage.googleapis.com/bucket/community/photo.jpg';
+    final post = CommunityPost.fromJson({
+      'id': 1,
+      'author_id': 1,
+      'author_nickname': '작성자',
+      'author_avatar_url': gcsUrl,
+      'region': '부산',
+      'board': 'free',
+      'photo_url': gcsUrl,
+      'photo_urls': [gcsUrl],
+      'like_count': 0,
+      'comment_count': 0,
+      'view_count': 0,
+      'created_at': '2026-09-18T00:00:00Z',
+    });
+    expect(post.authorAvatarUrl, gcsUrl);
+    expect(post.photoUrl, gcsUrl);
+    expect(post.photoUrls, [gcsUrl]);
   });
   test('코스의 날씨·거리·정류지 정보를 보존한다', () {
     final course = TourCourse.fromJson({

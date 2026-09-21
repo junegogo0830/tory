@@ -1,4 +1,4 @@
-import '../../core/constants/app_constants.dart';
+import '../../core/utils/image_proxy.dart';
 
 /// 블로그 스타일 글쓰기의 본문 블록 하나 — 텍스트 또는 사진, 작성한 순서 그대로.
 /// 옛 글(글쓰기 당시 블록 개념이 없던 글)은 항상 null이고, caption/photoUrls로 렌더링한다.
@@ -14,7 +14,7 @@ class ContentBlock {
     return ContentBlock(
       type: json['type'] as String,
       text: json['text'] as String?,
-      imageUrl: imagePath == null ? null : '${AppConstants.apiBaseUrl}$imagePath',
+      imageUrl: resolveStoredImageUrl(imagePath),
     );
   }
 }
@@ -27,6 +27,7 @@ class CommunityPost {
     required this.id,
     required this.authorId,
     required this.authorNickname,
+    this.authorAvatarUrl,
     required this.region,
     required this.board,
     this.title,
@@ -35,17 +36,23 @@ class CommunityPost {
     this.locationId,
     this.caption,
     this.contentBlocks,
+    this.categories = const [],
     this.memoryYear,
     this.revealAt,
     this.revealed = true,
     this.price,
     this.tradeStatus,
+    this.likeCount = 0,
+    this.commentCount = 0,
+    this.viewCount = 0,
     required this.createdAt,
   });
 
   final int id;
   final int authorId;
   final String authorNickname;
+  // 작성자가 프로필 사진을 등록 안 했으면 null — 화면에서 기본 아바타로 폴백한다.
+  final String? authorAvatarUrl;
   final String region;
   final String board;
   final String? title;
@@ -59,6 +66,8 @@ class CommunityPost {
   final String? caption;
   // 블로그 스타일로 작성된 글만 채워진다. null/빈 배열이면 위 caption/photoUrls로 렌더링하는 옛 글.
   final List<ContentBlock>? contentBlocks;
+  // 글쓰기 때 고른 카테고리(중복 선택 가능).
+  final List<String> categories;
   final int? memoryYear;
   // 타임캡슐 게시판 전용 — 이 시각이 지나야 열린다. 다른 게시판은 항상 null/true.
   final DateTime? revealAt;
@@ -67,31 +76,40 @@ class CommunityPost {
   // price가 null이면 "나눔"으로 보여준다.
   final int? price;
   final String? tradeStatus;
+  final int likeCount;
+  final int commentCount;
+  final int viewCount;
   final DateTime createdAt;
 
   factory CommunityPost.fromJson(Map<String, dynamic> json) {
     final photoPath = json['photo_url'] as String?;
     final photoPaths = (json['photo_urls'] as List? ?? []).cast<String>();
+    final avatarPath = json['author_avatar_url'] as String?;
     final revealAtRaw = json['reveal_at'] as String?;
     return CommunityPost(
       id: json['id'] as int,
       authorId: json['author_id'] as int,
       authorNickname: json['author_nickname'] as String,
+      authorAvatarUrl: resolveStoredImageUrl(avatarPath),
       region: json['region'] as String,
       board: json['board'] as String,
       title: json['title'] as String?,
       locationId: json['location_id'] as String?,
-      photoUrl: photoPath == null ? null : '${AppConstants.apiBaseUrl}$photoPath',
-      photoUrls: photoPaths.map((path) => '${AppConstants.apiBaseUrl}$path').toList(),
+      photoUrl: resolveStoredImageUrl(photoPath),
+      photoUrls: photoPaths.map((path) => resolveStoredImageUrl(path)!).toList(),
       caption: json['caption'] as String?,
       contentBlocks: (json['content_blocks'] as List?)
           ?.map((b) => ContentBlock.fromJson(b as Map<String, dynamic>))
           .toList(),
+      categories: (json['categories'] as List? ?? []).cast<String>(),
       memoryYear: json['memory_year'] as int?,
       revealAt: revealAtRaw == null ? null : DateTime.parse(revealAtRaw),
       revealed: json['revealed'] as bool? ?? true,
       price: json['price'] as int?,
       tradeStatus: json['trade_status'] as String?,
+      likeCount: json['like_count'] as int? ?? 0,
+      commentCount: json['comment_count'] as int? ?? 0,
+      viewCount: json['view_count'] as int? ?? 0,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

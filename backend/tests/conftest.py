@@ -168,6 +168,40 @@ def _no_live_anthropic_story_calls(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_live_meal_ranking_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """식사 추천 랭킹도 유닛 테스트에서는 실제 Claude 호출을 하지 않는다 —
+    입력 pool을 그대로 돌려줘서(폴백 경로와 동일) 결정론적으로 테스트한다."""
+    from app.services.meal_planner import MealPlannerService
+
+    async def _no_ranking(self: MealPlannerService, pools_by_type, **kwargs):  # noqa: ARG001, ANN001
+        return dict(pools_by_type)
+
+    monkeypatch.setattr(MealPlannerService, "_rank_with_claude", _no_ranking)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_meal_photo_backfill(monkeypatch: pytest.MonkeyPatch) -> None:
+    """식사 후보 구글 사진 보강도 유닛 테스트에서는 실제 호출을 하지 않는다."""
+    from app.services.meal_planner import MealPlannerService
+
+    async def _no_backfill(self: MealPlannerService, pools_by_type, region):  # noqa: ARG001, ANN001
+        return None
+
+    monkeypatch.setattr(MealPlannerService, "_fill_missing_photos", _no_backfill)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_gemini_chatbot_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """유닛 테스트는 실제 제미나이 호출(과금 발생)에 의존하지 않는다."""
+    from app.services.chatbot import ChatbotService
+
+    async def _no_reply(self: ChatbotService, *, mode: str, history: list, message: str) -> str | None:  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(ChatbotService, "reply", _no_reply)
+
+
+@pytest.fixture(autouse=True)
 def _no_live_weather_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """유닛 테스트는 실제 OpenWeatherMap 호출에 의존하지 않는다."""
     from app.services.weather import WeatherService

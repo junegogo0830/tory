@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     kakao_map_js_key: str = ""
     kakao_rest_api_key: str = ""
     google_maps_api_key: str = ""
+    # 네이버 로그인 전용 client_id/secret — naver_news_*(뉴스 검색 API)와는
+    # 완전히 별개의 애플리케이션이라 네이버 개발자센터에서 따로 발급받는다.
+    naver_login_client_id: str = ""
+    naver_login_client_secret: str = ""
 
     # SENS 발송 설정. 하나라도 비어 있으면 발송에 실패하며 인증을 우회할 수 없다.
     ncp_access_key: str = ""
@@ -41,6 +45,7 @@ class Settings(BaseSettings):
     # SENS에 사전 등록한 발신번호. 하이픈 없이 숫자만(예: "01012345678").
     ncp_sens_sender_number: str = ""
     anthropic_api_key: str = ""
+    gemini_api_key: str = ""
     openweather_api_key: str = ""
 
     sentiment_model_path: str = "./ml/serving/model.onnx"

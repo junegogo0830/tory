@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'core/app_scroll_behavior.dart';
 import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/repositories/auth_repository.dart' show naverStatePrefix;
 import 'features/auth/data/auth_providers.dart';
 
 Future<void> main() async {
@@ -66,9 +68,16 @@ class _YetgilAppState extends ConsumerState<YetgilApp> {
     // 라우팅과 무관하게 브라우저 주소창 자체를 그대로 반영해 항상 이 code를 볼 수 있다.
     if (kIsWeb) {
       final code = Uri.base.queryParameters['code'];
+      final state = Uri.base.queryParameters['state'];
       if (code != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.read(authStateProvider.notifier).completeKakaoWebLogin(code);
+          // 네이버는 카카오와 달리 state를 돌려주므로(naverStatePrefix 참고),
+          // 그 값으로 지금 돌아온 code가 어느 제공자 것인지 구분한다.
+          if (state != null && state.startsWith(naverStatePrefix)) {
+            ref.read(authStateProvider.notifier).completeNaverWebLogin(code, state);
+          } else {
+            ref.read(authStateProvider.notifier).completeKakaoWebLogin(code);
+          }
         });
       }
     }
@@ -80,6 +89,7 @@ class _YetgilAppState extends ConsumerState<YetgilApp> {
       title: '옛길',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      scrollBehavior: AppScrollBehavior(),
       routerConfig: appRouter,
     );
   }

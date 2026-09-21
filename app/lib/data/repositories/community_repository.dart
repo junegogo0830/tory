@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 import '../api/api_client.dart';
@@ -108,6 +110,7 @@ class CommunityRepository {
     int limit = 20,
     int offset = 0,
     String query = '',
+    String? category,
   }) async {
     final response = await _apiClient.dio.get(
       '/api/community/posts',
@@ -117,11 +120,20 @@ class CommunityRepository {
         'limit': limit,
         'offset': offset,
         'query': query,
+        'category': ?category,
       },
     );
     return (response.data as List)
         .map((json) => CommunityPost.fromJson(json as Map<String, dynamic>))
         .toList();
+  }
+
+  /// 게시판별 카테고리 목록(글쓰기 태그 버튼/목록 필터 토글용) — {board: [카테고리...]}.
+  Future<Map<String, List<String>>> postCategories() async {
+    final response = await _apiClient.dio.get('/api/community/posts/categories');
+    return (response.data as Map<String, dynamic>).map(
+      (board, values) => MapEntry(board, (values as List).cast<String>()),
+    );
   }
 
   /// 로그인 필요. 지역 게시판에 글을 올린다 — 사진은 게시판에 따라 선택(자유/주민/
@@ -140,6 +152,7 @@ class CommunityRepository {
     String? tradeStatus,
     bool isTrade = true,
     String? contentBlocks,
+    List<String> categories = const [],
   }) async {
     final formData = FormData.fromMap({
       'region': region,
@@ -153,6 +166,7 @@ class CommunityRepository {
       'trade_status': ?tradeStatus,
       'is_trade': isTrade.toString(),
       'content_blocks': ?contentBlocks,
+      if (categories.isNotEmpty) 'categories': jsonEncode(categories),
       if (photos.isNotEmpty)
         'files': [
           for (final photo in photos)

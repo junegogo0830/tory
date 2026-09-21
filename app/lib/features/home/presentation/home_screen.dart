@@ -12,6 +12,7 @@ import '../../../data/models/news_item.dart';
 import '../../../data/repositories/repository_providers.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../archive/data/archive_providers.dart';
+import '../../chatbot/presentation/chatbot_fab.dart';
 import '../data/home_providers.dart';
 import 'widgets/community_preview_section.dart';
 import 'widgets/hero_highlight_banner.dart';
@@ -143,29 +144,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 920),
-            child: recentAsync.when(
-              data: (locations) => _HomeContent(
-                primary: locations.isNotEmpty ? locations[_carouselIndex % locations.length] : null,
-                locationCount: locations.length,
-                activeIndex: locations.isEmpty ? 0 : _carouselIndex % locations.length,
-                controller: _queryController,
-                onSubmit: _submitQuery,
-                showSuggestions: isTyping,
-                isSearching: _isSearching,
-                suggestions: _suggestions,
-                onSelectSuggestion: _selectSuggestion,
-                categoryFilter: _categoryFilter,
-                onCategoryFilterChanged: _onCategoryFilterChanged,
-              ),
-              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-              error: (_, _) => Center(
-                child: Text('홈 정보를 불러오지 못했어요', style: AppTypography.subhead),
+        child: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: recentAsync.when(
+                  data: (locations) => _HomeContent(
+                    primary: locations.isNotEmpty ? locations[_carouselIndex % locations.length] : null,
+                    locationCount: locations.length,
+                    activeIndex: locations.isEmpty ? 0 : _carouselIndex % locations.length,
+                    controller: _queryController,
+                    onSubmit: _submitQuery,
+                    showSuggestions: isTyping,
+                    isSearching: _isSearching,
+                    suggestions: _suggestions,
+                    onSelectSuggestion: _selectSuggestion,
+                    categoryFilter: _categoryFilter,
+                    onCategoryFilterChanged: _onCategoryFilterChanged,
+                  ),
+                  loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                  error: (_, _) => Center(
+                    child: Text('홈 정보를 불러오지 못했어요', style: AppTypography.subhead),
+                  ),
+                ),
               ),
             ),
-          ),
+            const ChatbotFab(),
+          ],
         ),
       ),
     );

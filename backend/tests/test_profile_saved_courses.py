@@ -94,6 +94,30 @@ async def test_save_generated_course_404_when_not_found(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_save_generated_course_with_explicit_snapshot_skips_refetch(db, monkeypatch):
+    """식사 추가는 서버 캐시에 없는 화면 전용 변경이라, 저장 시점에 id로 다시
+    조회하면 방금 추가한 식당이 사라진다 — course를 직접 넘기면 그 스냅샷을
+    그대로 믿어야 한다."""
+
+    async def _stale_get_course_by_id(self, course_id):
+        return _fake_course(course_id)  # 식사가 없는 "원본" — 호출되면 안 된다.
+
+    monkeypatch.setattr(RecommendationService, "get_course_by_id", _stale_get_course_by_id)
+
+    service = ProfileService()
+    user = User(kakao_id="save-gen-snapshot", nickname="나")
+    db.add(user)
+    await db.commit()
+
+    with_meal = _fake_course("llm-2").model_copy(update={"title": "벚꽃길 코스 (점심식당 포함)"})
+    await service.save_course(db, user, "generated", "llm-2", course=with_meal)
+
+    saved = await service.list_saved_courses(db, user)
+    assert len(saved) == 1
+    assert saved[0].title == "벚꽃길 코스 (점심식당 포함)"
+
+
+@pytest.mark.asyncio
 async def test_save_custom_course_resolves_live_and_skips_deleted(db):
     course_service = CustomCourseService()
     profile_service = ProfileService()
